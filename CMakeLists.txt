@@ -32,7 +32,7 @@ if(WIN32 AND EPUI_BUILD_WINDOWS_SIM)
         ports/windows/simulator.cpp
         ${EPUI_SIM_UI_SOURCES}
     )
-    target_link_libraries(epui_sim PRIVATE epui)
+    target_link_libraries(epui_sim PRIVATE epui Psapi)
     target_include_directories(epui_sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/examples/simulator_ui)
 endif()
 
@@ -88,6 +88,14 @@ if(EPUI_BUILD_TESTS)
     add_executable(epui_fps_debug_test tests/fps_debug_test.cpp)
     target_link_libraries(epui_fps_debug_test PRIVATE epui)
     add_test(NAME epui_fps_debug COMMAND epui_fps_debug_test)
+
+    add_executable(epui_simulator_ui_test
+        tests/simulator_ui_test.cpp
+        ${EPUI_SIM_UI_SOURCES}
+    )
+    target_link_libraries(epui_simulator_ui_test PRIVATE epui)
+    target_include_directories(epui_simulator_ui_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/examples/simulator_ui)
+    add_test(NAME epui_simulator_ui COMMAND epui_simulator_ui_test)
 
     add_executable(epui_public_api_test tests/public_api_test.cpp)
     target_link_libraries(epui_public_api_test PRIVATE epui)

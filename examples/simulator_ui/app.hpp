@@ -2,6 +2,7 @@
 
 #include "about_page.hpp"
 #include "epui/canvas.hpp"
+#include "epui/diagnostics_plugin.hpp"
 #include "epui/fps_debug_plugin.hpp"
 #include "epui/menu_plugin.hpp"
 #include "epui/page.hpp"
@@ -21,7 +22,12 @@ public:
     Ui& ui() { return ui_; }
     const Ui& ui() const { return ui_; }
     MenuPagePlugin<12>& menu() { return menu_; }
-    FpsDebugPlugin& fps_debug() { return fps_debug_; }
+    DiagnosticsPlugin& diagnostics() { return diagnostics_; }
+    const DiagnosticsPlugin& diagnostics() const { return diagnostics_; }
+
+    // Compatibility accessor retained for callers written against the original
+    // FPS-only debug plugin.
+    FpsDebugPlugin& fps_debug() { return diagnostics_; }
 
 private:
     Canvas canvas_;
@@ -30,7 +36,7 @@ private:
     SensorPage sensors_;
     AboutPage about_;
     MenuPagePlugin<12> menu_;
-    FpsDebugPlugin fps_debug_;
+    DiagnosticsPlugin diagnostics_;
 };
 
 } // namespace epui::demo
