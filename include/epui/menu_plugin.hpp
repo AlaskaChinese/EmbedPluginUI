@@ -350,8 +350,10 @@ public:
     }
 
     bool jelly_active() const {
+        const bool glide_jelly = is_glide_style()
+            && (spring_active(glide_frame_) || glide_active());
         return spring_active(selection_) || spring_active(scroll_) || spring_active(panel_)
-            || spring_active(glide_frame_) || glide_active();
+            || glide_jelly;
     }
 
     void draw(Canvas& canvas, std::uint32_t now_ms) override {
@@ -541,17 +543,21 @@ private:
 
         const std::uint32_t spring_elapsed = elapsed;
 
-        // First advance the U8g2-style virtual target so this frame's spring
-        // integration chases the newest intermediate target immediately.
-        const std::uint32_t tick = style_.glide_tick_ms == 0 ? 1u : style_.glide_tick_ms;
-        glide_accumulator_ms_ += spring_elapsed;
-        while (glide_accumulator_ms_ >= tick) {
-            step_glide();
-            glide_accumulator_ms_ -= tick;
+        // Only Glide/Slide advance the deterministic target path. Other styles
+        // leave the glide spring completely isolated.
+        if (is_glide_style()) {
+            const std::uint32_t tick = style_.glide_tick_ms == 0 ? 1u : style_.glide_tick_ms;
+            glide_accumulator_ms_ += spring_elapsed;
+            while (glide_accumulator_ms_ >= tick) {
+                step_glide();
+                glide_accumulator_ms_ -= tick;
+            }
+        } else {
+            glide_accumulator_ms_ = 0;
         }
 
-        // Then integrate all visible spring states. Glide/Slide's frame spring
-        // uses the exact same stiffness/damping as Glass.
+        // Integrate all visible spring states. Glide/Slide's frame spring uses
+        // the exact same stiffness/damping as Glass.
         while (elapsed > 0) {
             const std::uint32_t step_ms = elapsed > 8 ? 8 : elapsed;
             const float dt = static_cast<float>(step_ms) / 16.0f;
