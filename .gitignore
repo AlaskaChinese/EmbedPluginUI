@@ -1,0 +1,44 @@
+# CMake out-of-source builds
+/build/
+/build-*/
+/cmake-build-*/
+
+# CMake generated files (when configured in-place by mistake)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+
+# Ninja generated files
+*.ninja
+.ninja_*
+
+# Compiler / linker outputs
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.elf
+*.map
+
+# Debug / profiling / coverage outputs
+*.pdb
+*.ilk
+*.dSYM/
+*.gcda
+*.gcno
+*.gcov
+
+# Generated logs and temporary files
+*.log
+*.tmp
+*.swp
+*~
