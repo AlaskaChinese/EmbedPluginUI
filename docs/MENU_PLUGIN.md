@@ -42,6 +42,29 @@ While the menu is focused:
 
 When the root menu is unfocused, `Next/Prev` return to normal top-level `Ui` page navigation. `Select` focuses the menu again. This lets the same three-button or encoder input device drive both pages and arbitrary menu depth.
 
+## Layout freedom
+
+The framework owns the layout parameters; an application or demo chooses values that suit its display and font. In particular, menu text and right-side values/arrows are positioned from the selection-frame edges rather than from unrelated screen margins:
+
+```cpp
+epui::MenuStyle style;
+style.glass_x = 3;
+style.glass_width = 122;
+style.content_inset_left = 8;
+style.content_inset_right = 8;
+```
+
+With equal insets, the resting frame has the same visual breathing room on both sides. Applications can deliberately make the two values different when needed. `text_x` and `right_margin` remain in the struct for source compatibility with older code, but new projects should prefer `content_inset_left/right`.
+
+Vertical spacing is also application-defined:
+
+```cpp
+style.row_height = 12;
+style.glass_height = 9;
+```
+
+This leaves a visible gap between adjacent selection capsules. A compact menu can keep `row_height = 10`; a metaball-heavy animation generally looks better around 11-13 pixels with a 9-pixel capsule. The framework does not force either choice.
+
 ## Jelly animation
 
 Selection, list scrolling and submenu slide-in use a small damped spring integrator. `MenuStyle::spring_stiffness` and `spring_damping` control the feel without requiring a second framebuffer or heap allocation.
@@ -57,40 +80,41 @@ The default parameters intentionally overshoot slightly before settling, produci
 
 ## Selection styles
 
-The original left-side indicator remains the default. `LiquidGlass` is the OLED-native liquid capsule style and can be switched at runtime:
+The original left-side indicator remains the default. `LiquidGlass` is the OLED-native liquid/metaball style and can be switched at runtime:
 
 ```cpp
 menu.set_selection_style(epui::MenuSelectionStyle::Indicator);
 menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
 ```
 
-`LiquidGlass` no longer tries to imitate an LCD blur layer. It is designed around a 1-bit 128x64 OLED:
+`LiquidGlass` does not try to reproduce alpha blur or desktop compositing. It is designed around a 1-bit 128x64 OLED. During a selection move, each end of the capsule behaves like a small liquid droplet. The previous/current pair first separates through a narrow neck, then the current/target pair fuses into the destination. The bridge width narrows in the middle like a simplified 2D metaball, while the main text band stays open and readable.
 
-- the capsule position follows the same damped spring as the menu selection;
-- velocity squeezes the capsule horizontally instead of filling the row with a rigid rectangle;
-- a metaball-like pair of side bridges stretches back toward the previous selection anchor;
-- small landing lobes pull the capsule toward the target row;
-- the long top/bottom edges open while moving so the shape reads as a deforming membrane;
-- a short specular edge highlight moves on the leading side;
-- optional checker/dither trail pixels suggest translucent persistence without grayscale;
-- nearby labels and values receive a temporary 1-pixel horizontal displacement to mimic lens refraction instead of being inverted by a solid bar.
+The effect combines:
 
-The effect is still heap-free and uses the existing 1024-byte framebuffer.
+- damped-spring position and overshoot;
+- a configurable capsule outline;
+- filled metaball droplets at the left and right capsule ends;
+- a variable-width neck between the two droplet centers;
+- a two-phase source-to-current then current-to-target fusion;
+- a short leading-edge highlight;
+- optional sparse trail pixels;
+- optional 1-pixel label/value refraction near the moving capsule.
 
 ```cpp
 epui::MenuStyle style;
 style.selection_style = epui::MenuSelectionStyle::LiquidGlass;
+style.row_height = 12;
 style.glass_width = 122;
 style.glass_height = 9;
 style.glass_radius = 4;
-style.glass_max_stretch = 5;
-style.glass_stretch_per_velocity = 0.35f;
-style.liquid_bridge_width = 2;
-style.liquid_bridge_max_span = 18;
+style.content_inset_left = 8;
+style.content_inset_right = 8;
+style.liquid_metaball_radius = 3;
+style.liquid_bridge_width = 1;
+style.liquid_bridge_max_span = 16;
 style.liquid_refraction_px = 1;
-style.liquid_refraction_radius = 6;
-style.liquid_dither_trail = true;
-style.liquid_trail_length = 6;
+style.liquid_refraction_radius = 4;
+style.liquid_dither_trail = false;
 ```
 
-The Ubuntu simulator demonstrates runtime switching under `Jelly Menu -> Display -> Theme -> Liquid Cursor`.
+The Ubuntu simulator uses those values as one recommended 0.96-inch OLED preset, not as framework-wide constants. Runtime switching remains under `Jelly Menu -> Display -> Theme -> Liquid Cursor`.
