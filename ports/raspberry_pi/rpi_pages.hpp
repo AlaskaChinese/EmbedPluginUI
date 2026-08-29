@@ -1,5 +1,48 @@
 #pragma once
-#include "openoledui/page.hpp"
-#include "system_monitor.hpp"
-#include "terminal_feed.hpp"
-namespace openoledui::rpi {class OverviewPage final:public Page{public:explicit OverviewPage(const StatusSnapshot&s):s_(s){}void draw(Canvas&,std::uint32_t)override;private:const StatusSnapshot&s_;};class NetworkPage final:public Page{public:explicit NetworkPage(const StatusSnapshot&s):s_(s){}void draw(Canvas&,std::uint32_t)override;private:const StatusSnapshot&s_;};class PowerPage final:public Page{public:explicit PowerPage(const StatusSnapshot&s):s_(s){}void draw(Canvas&,std::uint32_t)override;private:const StatusSnapshot&s_;};class SystemPage final:public Page{public:explicit SystemPage(const StatusSnapshot&s):s_(s){}void draw(Canvas&,std::uint32_t)override;private:const StatusSnapshot&s_;};class TerminalPage final:public Page{public:explicit TerminalPage(const TerminalFeed&f):f_(f){}void draw(Canvas&,std::uint32_t)override;private:const TerminalFeed&f_;};}
+
+#include "epui/page_plugin.hpp"
+#include "rpi_plugins.hpp"
+
+namespace openoledui::rpi {
+
+class OverviewPage final : public epui::PagePlugin {
+public:
+    OverviewPage(epui::Ui& ui, const SystemMonitorPlugin& system) : PagePlugin(ui, "page-overview"), system_(system) {}
+    void draw(epui::Canvas&, std::uint32_t) override;
+private:
+    const SystemMonitorPlugin& system_;
+};
+
+class NetworkPage final : public epui::PagePlugin {
+public:
+    NetworkPage(epui::Ui& ui, const SystemMonitorPlugin& system) : PagePlugin(ui, "page-network"), system_(system) {}
+    void draw(epui::Canvas&, std::uint32_t) override;
+private:
+    const SystemMonitorPlugin& system_;
+};
+
+class PowerPage final : public epui::PagePlugin {
+public:
+    PowerPage(epui::Ui& ui, const SystemMonitorPlugin& system) : PagePlugin(ui, "page-power"), system_(system) {}
+    void draw(epui::Canvas&, std::uint32_t) override;
+private:
+    const SystemMonitorPlugin& system_;
+};
+
+class SystemPage final : public epui::PagePlugin {
+public:
+    SystemPage(epui::Ui& ui, const SystemMonitorPlugin& system) : PagePlugin(ui, "page-system"), system_(system) {}
+    void draw(epui::Canvas&, std::uint32_t) override;
+private:
+    const SystemMonitorPlugin& system_;
+};
+
+class TerminalPage final : public epui::PagePlugin {
+public:
+    TerminalPage(epui::Ui& ui, const TerminalFeedPlugin& terminal) : PagePlugin(ui, "page-terminal"), terminal_(terminal) {}
+    void draw(epui::Canvas&, std::uint32_t) override;
+private:
+    const TerminalFeedPlugin& terminal_;
+};
+
+} // namespace openoledui::rpi
