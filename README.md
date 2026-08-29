@@ -19,8 +19,11 @@ The portable core owns rendering, navigation and animation. Platform-specific co
 
 - 128x64 1-bit Canvas with a 1024-byte framebuffer.
 - Damped-spring jelly page transitions with configurable stiffness and damping, without a second framebuffer.
-- Arbitrary-depth static menu trees with jelly selection, scrolling and submenu motion.
-- OLED-native `LiquidGlass` selection using liquid bridges, target lobes, moving edge highlights, dither trails and 1-pixel refraction rather than LCD-style blur.
+- Arbitrary-depth static menu trees with smooth selection, scrolling and submenu motion.
+- Three menu selection animations: spring `Indicator`, content-fitting `GlideFrame`, and fixed-width `SlideFrame`.
+- Smooth animated scrolling for menus longer than one visible page.
+- `Choice` menu items for static enum-like settings without heap allocation.
+- Symmetric, application-configurable frame-to-content insets.
 - Fixed-capacity `UiOverlay` support and a heap-free FPS debug overlay plugin.
 - SSD1306 and SH1106 support.
 - Callback transport for MCU integrations.
@@ -59,9 +62,15 @@ examples/simulator_ui/
 
 Edit the page files to develop the simulated OLED UI. `app.cpp` is the page composition point; `ports/linux/simulator.cpp` and `ports/windows/simulator.cpp` only implement the desktop window/input/display adapters.
 
-Top-level left/right page changes use the same lightweight damped-spring motion language as the menu plugin. Developers can tune it globally through `epui::PageTransitionStyle` and `Ui::set_transition_style()`.
+Top-level left/right page changes use a lightweight damped-spring transition. Developers can tune it globally through `epui::PageTransitionStyle` and `Ui::set_transition_style()`.
 
-The demo exposes `Jelly Menu -> Display -> Theme -> Liquid Cursor` and `Jelly Menu -> System -> Debug -> FPS Overlay` for live runtime switching.
+The menu demo exposes:
+
+```text
+Jelly Menu -> Display -> Theme -> Cursor
+```
+
+Press `Select` to cycle among `Indicator`, `Glide`, and `Slide`. The root menu and `Long Menu` also demonstrate smooth scrolling beyond one page. FPS can be toggled under `Jelly Menu -> System -> Debug -> FPS Overlay`.
 
 ## Ubuntu 22.04 development
 
@@ -88,14 +97,6 @@ cmake --build build-pi -j4
 
 ## MCU integration
 
-```cpp
-#include <epui/callback_transport.hpp>
-#include <epui/canvas.hpp>
-#include <epui/oled.hpp>
-#include <epui/page.hpp>
+The embedded core does not require Linux, X11, Win32, RTTI, dynamic allocation or dynamic plugin loading. Platform adapters expose callback-based hooks so MCU applications can bind their existing I2C/GPIO/delay functions without importing vendor headers into the portable core.
 
-epui::CallbackTransport transport(ctx, write_fn, delay_fn);
-epui::Oled128x64 oled(transport, epui::OledController::SSD1306);
-epui::Canvas canvas;
-epui::Ui ui;
-```
+See `docs/ARCHITECTURE.md` and `docs/MENU_PLUGIN.md` for the plugin and menu design.
