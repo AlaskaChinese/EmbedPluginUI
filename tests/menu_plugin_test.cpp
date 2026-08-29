@@ -90,6 +90,7 @@ int main() {
     assert(menu.focused());
     assert(menu.selection_style() == epui::MenuSelectionStyle::Indicator);
     assert(menu.style().glass_height == 11);
+    assert(menu.style().scroll_handoff_kick > 0.0f);
 
     epui::Canvas indicator_canvas;
     menu.draw(indicator_canvas, 0);
@@ -264,9 +265,10 @@ int main() {
     assert(pixel_count_band(partial_canvas, 55, 63) > 0);
     partial_page.stop();
 
-    // A menu longer than the viewport must scroll gradually instead of jumping.
-    // The visible frame may spring around the virtual relative target, while the
-    // list itself preserves the deterministic 4/4/1/1 scroll sequence.
+    // A menu longer than the viewport uses a sticky viewport. Crossing the
+    // bottom edge scrolls the content gradually and gives the anchored frame
+    // a spring handoff; moving back up within that viewport moves only the
+    // frame and must not drag the whole list back down.
     epui::MenuStyle long_style{};
     long_style.selection_style = epui::MenuSelectionStyle::GlideFrame;
     long_style.visible_rows = 4;
@@ -289,13 +291,28 @@ int main() {
         long_page.draw(long_canvas, now);
     }
     assert(long_page.selected_index() == 3);
+    assert(long_page.first_visible_index() == 0);
     assert(long_page.glide_scroll_position() == 0);
 
+    // Let the frame settle exactly on the fourth/bottom slot before testing
+    // the edge handoff.
+    for (int i = 0; i < 48; ++i) {
+        now += 16;
+        long_page.draw(long_canvas, now);
+    }
+    const float bottom_slot = 3.0f * static_cast<float>(long_style.row_height);
+    assert(std::fabs(long_page.frame_motion_position() - bottom_slot) < 0.1f);
+
     long_page.on_key(epui::Key::Next);
+    assert(long_page.selected_index() == 4);
+    assert(long_page.first_visible_index() == 1);
     assert(long_page.glide_scroll_target() == 10);
+    assert(long_page.frame_motion_velocity() > 0.5f);
+
     now += 16;
     long_page.draw(long_canvas, now);
     assert(long_page.glide_scroll_position() == 4);
+    assert(long_page.frame_motion_position() > bottom_slot);
     now += 16;
     long_page.draw(long_canvas, now);
     assert(long_page.glide_scroll_position() == 8);
@@ -305,6 +322,42 @@ int main() {
     now += 16;
     long_page.draw(long_canvas, now);
     assert(long_page.glide_scroll_position() == 10);
+
+    for (int i = 0; i < 56; ++i) {
+        now += 16;
+        long_page.draw(long_canvas, now);
+    }
+    assert(std::fabs(long_page.frame_motion_position() - bottom_slot) < 0.1f);
+    assert(std::fabs(long_page.frame_motion_velocity()) < 0.1f);
+
+    // Moving 5 -> 4 must keep the current viewport. Scroll remains at one row,
+    // while the frame alone travels upward from slot 4 to slot 3.
+    long_page.on_key(epui::Key::Prev);
+    assert(long_page.selected_index() == 3);
+    assert(long_page.first_visible_index() == 1);
+    assert(long_page.glide_scroll_target() == 10);
+    now += 16;
+    long_page.draw(long_canvas, now);
+    assert(long_page.glide_scroll_position() == 10);
+    now += 16;
+    long_page.draw(long_canvas, now);
+    assert(long_page.glide_scroll_position() == 10);
+    assert(long_page.frame_motion_target() < bottom_slot);
+
+    // The viewport stays sticky while rows 2/1 are still visible. Only when
+    // selection reaches item 0 does the window itself need to move back up.
+    long_page.on_key(epui::Key::Prev);
+    assert(long_page.selected_index() == 2);
+    assert(long_page.first_visible_index() == 1);
+    assert(long_page.glide_scroll_target() == 10);
+    long_page.on_key(epui::Key::Prev);
+    assert(long_page.selected_index() == 1);
+    assert(long_page.first_visible_index() == 1);
+    assert(long_page.glide_scroll_target() == 10);
+    long_page.on_key(epui::Key::Prev);
+    assert(long_page.selected_index() == 0);
+    assert(long_page.first_visible_index() == 0);
+    assert(long_page.glide_scroll_target() == 0);
     long_page.stop();
 
     menu.reset_to_root(true);
