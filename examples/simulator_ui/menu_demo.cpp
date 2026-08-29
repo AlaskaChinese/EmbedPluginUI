@@ -10,7 +10,7 @@ bool fps_overlay = true;
 bool sleep_enabled = true;
 bool invert_enabled = false;
 bool soft_theme = true;
-bool glide_cursor = true;
+std::uint8_t cursor_style_index = 1;
 int wifi_channel = 6;
 int log_level = 2;
 int brightness = 72;
@@ -20,11 +20,26 @@ int battery_warn = 20;
 MenuPagePlugin<12>* bound_menu = nullptr;
 FpsDebugPlugin* bound_fps = nullptr;
 
+const char* const cursor_style_options[] = {
+    "Indicator",
+    "Glide",
+    "Slide",
+};
+
 void apply_cursor_style(void*) {
     if (!bound_menu) return;
-    bound_menu->set_selection_style(glide_cursor
-        ? MenuSelectionStyle::GlideFrame
-        : MenuSelectionStyle::Indicator);
+    switch (cursor_style_index) {
+        case 0:
+            bound_menu->set_selection_style(MenuSelectionStyle::Indicator);
+            break;
+        case 2:
+            bound_menu->set_selection_style(MenuSelectionStyle::SlideFrame);
+            break;
+        case 1:
+        default:
+            bound_menu->set_selection_style(MenuSelectionStyle::GlideFrame);
+            break;
+    }
 }
 
 void apply_fps_overlay(void*) {
@@ -89,7 +104,7 @@ const Menu oled_menu = make_menu("OLED", oled_items);
 const MenuItem theme_items[] = {
     MenuItem::toggle("Soft", soft_theme),
     MenuItem::value("Radius", radius, 0, 8),
-    MenuItem::toggle("Glide Cursor", glide_cursor, apply_cursor_style),
+    MenuItem::choice("Cursor", cursor_style_index, cursor_style_options, apply_cursor_style),
 };
 const Menu theme_menu = make_menu("Theme", theme_items);
 
@@ -99,9 +114,8 @@ const MenuItem display_items[] = {
 };
 const Menu display_menu = make_menu("Display", display_items);
 
-// Deliberately longer than one 128x64 page. Labels vary in length so the
-// GlideFrame demo exercises Y movement, width interpolation and list scrolling
-// at the same time.
+// Deliberately longer than one 128x64 page. Labels vary in length so the demo
+// exercises cursor motion, width interpolation and smooth list scrolling.
 const MenuItem long_items[] = {
     MenuItem::action("Short", demo_action),
     MenuItem::action("Status", demo_action),
@@ -116,6 +130,8 @@ const MenuItem long_items[] = {
 };
 const Menu long_menu = make_menu("Long Menu", long_items);
 
+// The root itself is also longer than one page, so scrolling can be seen
+// without entering a submenu first.
 const MenuItem root_items[] = {
     MenuItem::submenu("System", system_menu),
     MenuItem::submenu("Network", network_menu),
@@ -176,7 +192,7 @@ void reset_demo_menu_state() {
     sleep_enabled = true;
     invert_enabled = false;
     soft_theme = true;
-    glide_cursor = true;
+    cursor_style_index = 1;
     wifi_channel = 6;
     log_level = 2;
     brightness = 72;
