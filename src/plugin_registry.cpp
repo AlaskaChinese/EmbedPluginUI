@@ -51,6 +51,10 @@ bool PluginRegistry::start_all() {
     return true;
 }
 
+void PluginRegistry::tick_all(std::uint32_t now_ms) {
+    for (std::size_t i = 0; i < started_count_; ++i) plugins_[i]->tick(now_ms);
+}
+
 void PluginRegistry::stop_all() {
     while (started_count_ > 0) plugins_[--started_count_]->stop();
 }
