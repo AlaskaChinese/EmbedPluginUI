@@ -16,6 +16,7 @@ enum class PluginKind : std::uint8_t {
     Theme,
     Platform,
     Service,
+    Debug,
 };
 
 struct PluginDependencies {

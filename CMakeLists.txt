@@ -81,6 +81,10 @@ if(EPUI_BUILD_TESTS)
     target_link_libraries(epui_page_transition_test PRIVATE epui)
     add_test(NAME epui_page_transition COMMAND epui_page_transition_test)
 
+    add_executable(epui_fps_debug_test tests/fps_debug_test.cpp)
+    target_link_libraries(epui_fps_debug_test PRIVATE epui)
+    add_test(NAME epui_fps_debug COMMAND epui_fps_debug_test)
+
     add_executable(epui_public_api_test tests/public_api_test.cpp)
     target_link_libraries(epui_public_api_test PRIVATE epui)
     add_test(NAME epui_public_api COMMAND epui_public_api_test)

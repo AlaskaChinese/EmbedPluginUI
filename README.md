@@ -11,6 +11,7 @@ EmbedPluginUI is a portable C++17 UI framework for small embedded displays. The 
 - Page plugins: dashboards, terminal, settings and application pages.
 - Widget plugins: cards, metrics, progress bars, icons and custom components.
 - Platform plugins: STM32, ESP32, Raspberry Pi, Ubuntu/Linux and Windows.
+- Debug plugins: FPS overlay today, with room for frame-time/RAM/transport diagnostics later.
 
 The portable core owns rendering, navigation and animation. Platform-specific code stays at the edge.
 
@@ -19,6 +20,8 @@ The portable core owns rendering, navigation and animation. Platform-specific co
 - 128x64 1-bit Canvas with a 1024-byte framebuffer.
 - Damped-spring jelly page transitions with configurable stiffness and damping, without a second framebuffer.
 - Arbitrary-depth static menu trees with jelly selection, scrolling and submenu motion.
+- OLED-native `LiquidGlass` selection using liquid bridges, target lobes, moving edge highlights, dither trails and 1-pixel refraction rather than LCD-style blur.
+- Fixed-capacity `UiOverlay` support and a heap-free FPS debug overlay plugin.
 - SSD1306 and SH1106 support.
 - Callback transport for MCU integrations.
 - Dependency-aware, fixed-capacity plugin runtime.
@@ -57,6 +60,8 @@ examples/simulator_ui/
 Edit the page files to develop the simulated OLED UI. `app.cpp` is the page composition point; `ports/linux/simulator.cpp` and `ports/windows/simulator.cpp` only implement the desktop window/input/display adapters.
 
 Top-level left/right page changes use the same lightweight damped-spring motion language as the menu plugin. Developers can tune it globally through `epui::PageTransitionStyle` and `Ui::set_transition_style()`.
+
+The demo exposes `Jelly Menu -> Display -> Theme -> Liquid Cursor` and `Jelly Menu -> System -> Debug -> FPS Overlay` for live runtime switching.
 
 ## Ubuntu 22.04 development
 

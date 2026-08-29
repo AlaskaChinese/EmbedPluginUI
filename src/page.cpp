@@ -25,6 +25,23 @@ bool Ui::remove_page(Page& page) {
     return false;
 }
 
+bool Ui::add_overlay(UiOverlay& overlay) {
+    if (overlay_count_ >= MaxOverlays) return false;
+    for (std::size_t i = 0; i < overlay_count_; ++i) if (overlays_[i] == &overlay) return false;
+    overlays_[overlay_count_++] = &overlay;
+    return true;
+}
+
+bool Ui::remove_overlay(UiOverlay& overlay) {
+    for (std::size_t i = 0; i < overlay_count_; ++i) {
+        if (overlays_[i] != &overlay) continue;
+        for (std::size_t j = i + 1; j < overlay_count_; ++j) overlays_[j - 1] = overlays_[j];
+        overlays_[--overlay_count_] = nullptr;
+        return true;
+    }
+    return false;
+}
+
 void Ui::reset_transition_motion(std::uint32_t now_ms) {
     transition_position_ = 0.0f;
     transition_velocity_ = 0.0f;
@@ -91,30 +108,8 @@ bool Ui::transition_settled() const {
         && absf(transition_velocity_) <= transition_style_.settle_velocity;
 }
 
-void Ui::render(Canvas& canvas, std::uint32_t now_ms) {
-    canvas.clear();
+void Ui::draw_page_dots(Canvas& canvas) const {
     if (count_ == 0) return;
-
-    if (!transition_active_) {
-        canvas.reset_origin();
-        pages_[current_]->draw(canvas, now_ms);
-    } else {
-        advance_transition(now_ms);
-        const int shift = round_to_int(transition_position_);
-        canvas.set_origin(-direction_ * shift, 0);
-        pages_[current_]->draw(canvas, now_ms);
-        canvas.set_origin(direction_ * (Canvas::Width - shift), 0);
-        pages_[target_]->draw(canvas, now_ms);
-        canvas.reset_origin();
-
-        if (transition_settled()) {
-            current_ = target_;
-            transition_active_ = false;
-            transition_has_time_ = false;
-        }
-    }
-
-    canvas.reset_origin();
     const int dots_w = static_cast<int>(count_ * 4 - 1);
     int x = (Canvas::Width - dots_w) / 2;
     const std::size_t active = transition_active_ ? target_ : current_;
@@ -122,6 +117,44 @@ void Ui::render(Canvas& canvas, std::uint32_t now_ms) {
         if (i == active) canvas.fill_rect(x, 61, 3, 2, true);
         else canvas.pixel(x + 1, 62, true);
     }
+}
+
+void Ui::draw_overlays(Canvas& canvas, std::uint32_t now_ms) {
+    canvas.reset_origin();
+    for (std::size_t i = 0; i < overlay_count_; ++i) {
+        if (overlays_[i]) overlays_[i]->draw_overlay(canvas, now_ms);
+    }
+}
+
+void Ui::render(Canvas& canvas, std::uint32_t now_ms) {
+    canvas.clear();
+
+    if (count_ != 0) {
+        if (!transition_active_) {
+            canvas.reset_origin();
+            pages_[current_]->draw(canvas, now_ms);
+        } else {
+            advance_transition(now_ms);
+            const int shift = round_to_int(transition_position_);
+            canvas.set_origin(-direction_ * shift, 0);
+            pages_[current_]->draw(canvas, now_ms);
+            canvas.set_origin(direction_ * (Canvas::Width - shift), 0);
+            pages_[target_]->draw(canvas, now_ms);
+            canvas.reset_origin();
+
+            if (transition_settled()) {
+                current_ = target_;
+                transition_active_ = false;
+                transition_has_time_ = false;
+            }
+        }
+
+        canvas.reset_origin();
+        draw_page_dots(canvas);
+    }
+
+    draw_overlays(canvas, now_ms);
+    canvas.reset_origin();
 }
 
 } // namespace epui
