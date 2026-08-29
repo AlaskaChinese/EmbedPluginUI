@@ -89,8 +89,8 @@ constexpr Menu make_menu(const char* title, const MenuItem (&items)[N]) {
 enum class MenuSelectionStyle : std::uint8_t {
     Indicator,
     GlideFrame,
-    // Backward-compatible source alias. The old liquid/metaball renderer has
-    // been removed; LiquidGlass now selects the same clean GlideFrame motion.
+    // Backward-compatible source alias. The former liquid/metaball renderer
+    // has been removed; LiquidGlass now selects the clean GlideFrame motion.
     LiquidGlass = GlideFrame,
 };
 
@@ -112,25 +112,28 @@ struct MenuStyle {
     MenuSelectionStyle selection_style{MenuSelectionStyle::Indicator};
 
     // Selection-frame geometry. The glass_* names are retained for source
-    // compatibility; they describe a plain 1-bit rounded frame now.
+    // compatibility; they now describe a plain 1-bit rounded frame.
     std::uint8_t glass_x{3};
     std::uint8_t glass_width{122};
     std::uint8_t glass_height{9};
     std::uint8_t glass_radius{4};
 
-    // GlideFrame follows the simple OLED motion popularized by small U8g2
-    // menus: move quickly while far from the target, then approach 1 px at a
-    // time. Position and width are independent state variables.
+    // GlideFrame follows the classic small-OLED two-speed approach: move
+    // quickly while far from the target, then approach one pixel per logical
+    // tick. Frame position, frame width and long-menu scrolling are independent
+    // state variables that use the same motion language.
     bool glide_fit_content{true};
     std::uint8_t glide_min_width{24};
     std::uint8_t glide_position_fast_step{5};
     std::uint8_t glide_position_slow_zone{4};
     std::uint8_t glide_width_fast_step{10};
     std::uint8_t glide_width_slow_zone{5};
+    std::uint8_t glide_scroll_fast_step{4};
+    std::uint8_t glide_scroll_slow_zone{4};
     std::uint16_t glide_tick_ms{16};
 
-    // Spring motion remains available for the original indicator, scrolling,
-    // and submenu/page-like panel motion.
+    // Spring motion remains available for the original indicator, its list
+    // scrolling, and submenu panel transitions.
     float spring_stiffness{0.22f};
     float spring_damping{0.35f};
     std::uint16_t max_frame_ms{48};
@@ -178,6 +181,8 @@ public:
     int glide_target_position() const { return glide_position_target_; }
     int glide_width() const { return glide_width_; }
     int glide_target_width() const { return glide_width_target_; }
+    int glide_scroll_position() const { return glide_scroll_position_; }
+    int glide_scroll_target() const { return glide_scroll_target_; }
     MenuSelectionStyle selection_style() const { return style_.selection_style; }
     const MenuStyle& style() const { return style_; }
 
@@ -191,6 +196,7 @@ public:
         style_.selection_style = style;
         if (style == MenuSelectionStyle::GlideFrame) {
             glide_position_ = glide_position_target_;
+            glide_scroll_position_ = glide_scroll_target_;
             glide_width_initialized_ = false;
         }
     }
@@ -358,25 +364,40 @@ private:
         return std::max(content_left_x(), edge);
     }
 
-    void sync_selection(bool snap) {
+    int selected_scroll_target() const {
         const Frame& frame = current_frame();
         const std::size_t rows = style_.visible_rows == 0 ? 1 : style_.visible_rows;
-        const float selected = static_cast<float>(frame.selected * style_.row_height);
         std::size_t first = 0;
         if (frame.selected >= rows) first = frame.selected - rows + 1;
-        const float scroll = static_cast<float>(first * style_.row_height);
+        return static_cast<int>(first * style_.row_height);
+    }
+
+    int effective_scroll_position() const {
+        if (style_.selection_style == MenuSelectionStyle::GlideFrame) {
+            return glide_scroll_position_;
+        }
+        return round_to_int(scroll_.position);
+    }
+
+    void sync_selection(bool snap) {
+        const Frame& frame = current_frame();
+        const float selected = static_cast<float>(frame.selected * style_.row_height);
         const int glide_selected = static_cast<int>(frame.selected * style_.row_height);
+        const int scroll_target = selected_scroll_target();
 
         if (snap) {
             reset_spring(selection_, selected);
-            reset_spring(scroll_, scroll);
+            reset_spring(scroll_, static_cast<float>(scroll_target));
             glide_position_ = glide_selected;
             glide_position_target_ = glide_selected;
+            glide_scroll_position_ = scroll_target;
+            glide_scroll_target_ = scroll_target;
             glide_accumulator_ms_ = 0;
         } else {
             selection_.target = selected;
-            scroll_.target = scroll;
+            scroll_.target = static_cast<float>(scroll_target);
             glide_position_target_ = glide_selected;
+            glide_scroll_target_ = scroll_target;
         }
     }
 
@@ -412,11 +433,16 @@ private:
         glide_toward(glide_width_, glide_width_target_,
                      static_cast<int>(style_.glide_width_fast_step),
                      static_cast<int>(style_.glide_width_slow_zone));
+        glide_toward(glide_scroll_position_, glide_scroll_target_,
+                     static_cast<int>(style_.glide_scroll_fast_step),
+                     static_cast<int>(style_.glide_scroll_slow_zone));
     }
 
     bool glide_active() const {
         if (style_.selection_style != MenuSelectionStyle::GlideFrame) return false;
-        return glide_position_ != glide_position_target_ || glide_width_ != glide_width_target_;
+        return glide_position_ != glide_position_target_
+            || glide_width_ != glide_width_target_
+            || glide_scroll_position_ != glide_scroll_target_;
     }
 
     void advance_animations(std::uint32_t now_ms) {
@@ -521,21 +547,21 @@ private:
             return;
         }
 
+        const int scroll = effective_scroll_position();
         for (std::size_t i = 0; i < menu.count; ++i) {
-            const float y_float = static_cast<float>(style_.content_top + i * style_.row_height) - scroll_.position;
-            const int y = round_to_int(y_float);
+            const int y = static_cast<int>(style_.content_top + i * style_.row_height) - scroll;
             if (y < 13 || y > Canvas::Height - 10) continue;
             const MenuItem& item = menu.items[i];
             canvas.text(panel_x + content_left_x(), y, item.label ? item.label : "?");
             draw_item_value(canvas, item, y, i == frame.selected, panel_x);
         }
 
-        draw_selection(canvas, panel_x);
+        draw_selection(canvas, panel_x, scroll);
     }
 
-    void draw_selection(Canvas& canvas, int panel_x) {
+    void draw_selection(Canvas& canvas, int panel_x, int scroll) {
         if (style_.selection_style == MenuSelectionStyle::GlideFrame) {
-            const int y = round_to_int(static_cast<float>(style_.content_top + glide_position_) - scroll_.position);
+            const int y = static_cast<int>(style_.content_top) + glide_position_ - scroll;
             if (y < 13 || y > Canvas::Height - 9) return;
             const int height = std::max(5, static_cast<int>(style_.glass_height));
             const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
@@ -571,6 +597,8 @@ private:
     int glide_position_target_{0};
     int glide_width_{0};
     int glide_width_target_{0};
+    int glide_scroll_position_{0};
+    int glide_scroll_target_{0};
     std::uint32_t glide_accumulator_ms_{0};
     bool glide_width_initialized_{false};
     std::uint32_t last_draw_ms_{0};
