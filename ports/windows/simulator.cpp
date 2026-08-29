@@ -20,8 +20,10 @@ std::uint32_t now_ms() {
 void handle_key(WPARAM key) {
     switch (key) {
     case VK_RIGHT:
+    case VK_DOWN:
     case 'D': g_app.ui().handle(Key::Next, now_ms()); break;
     case VK_LEFT:
+    case VK_UP:
     case 'A': g_app.ui().handle(Key::Prev, now_ms()); break;
     case VK_RETURN:
     case VK_SPACE: g_app.ui().handle(Key::Select, now_ms()); break;
@@ -67,7 +69,7 @@ void paint(HWND hwnd) {
 
     SetBkMode(mem, TRANSPARENT);
     SetTextColor(mem, RGB(165, 173, 184));
-    const char* hint = "Left/Right or A/D: page   Enter: select   Esc: back";
+    const char* hint = "A/D or arrows: move/page   Enter: select   Esc: back/unfocus";
     TextOutA(mem, kPad, kClientH - 16, hint, lstrlenA(hint));
     BitBlt(hdc, 0, 0, client.right, client.bottom, mem, 0, 0, SRCCOPY);
     SelectObject(mem, old);
@@ -99,11 +101,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show) {
 
     RECT r{0, 0, kClientW, kClientH};
     AdjustWindowRect(&r, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE);
-    HWND hwnd = CreateWindowExA(0, klass, "EmbedPluginUI - 128x64 Simulator",
-                                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-                                CW_USEDEFAULT, CW_USEDEFAULT,
-                                r.right - r.left, r.bottom - r.top,
-                                nullptr, nullptr, instance, nullptr);
+    HWND hwnd=CreateWindowExA(0, klass, "EmbedPluginUI - 128x64 Simulator",
+                              WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+                              CW_USEDEFAULT, CW_USEDEFAULT,
+                              r.right - r.left, r.bottom - r.top,
+                              nullptr, nullptr, instance, nullptr);
     if (!hwnd) return 2;
 
     ShowWindow(hwnd, show);

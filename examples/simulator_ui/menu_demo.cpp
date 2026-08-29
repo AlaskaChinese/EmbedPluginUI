@@ -1,0 +1,107 @@
+#include "menu_demo.hpp"
+
+namespace epui::demo {
+namespace {
+
+bool wifi_enabled = true;
+bool dhcp_enabled = true;
+bool debug_enabled = false;
+bool sleep_enabled = true;
+bool invert_enabled = false;
+bool soft_theme = true;
+int wifi_channel = 6;
+int log_level = 2;
+int brightness = 72;
+int contrast = 205;
+int radius = 4;
+int battery_warn = 20;
+
+void reset_defaults(void*) {
+    reset_demo_menu_state();
+}
+
+const MenuItem alert_items[] = {
+    MenuItem::value("Warn %", battery_warn, 5, 50, 5),
+};
+const Menu alerts_menu = make_menu("Alerts", alert_items);
+
+const MenuItem battery_items[] = {
+    MenuItem::submenu("Alerts", alerts_menu),
+    MenuItem::value("Warn %", battery_warn, 5, 50, 5),
+};
+const Menu battery_menu = make_menu("Battery", battery_items);
+
+const MenuItem power_items[] = {
+    MenuItem::submenu("Battery", battery_menu),
+    MenuItem::toggle("Sleep", sleep_enabled),
+};
+const Menu power_menu = make_menu("Power", power_items);
+
+const MenuItem system_items[] = {
+    MenuItem::submenu("Power", power_menu),
+    MenuItem::toggle("Debug", debug_enabled),
+    MenuItem::value("Log Level", log_level, 0, 5),
+};
+const Menu system_menu = make_menu("System", system_items);
+
+const MenuItem wifi_items[] = {
+    MenuItem::toggle("Enabled", wifi_enabled),
+    MenuItem::value("Channel", wifi_channel, 1, 13),
+};
+const Menu wifi_menu = make_menu("WiFi", wifi_items);
+
+const MenuItem network_items[] = {
+    MenuItem::submenu("WiFi", wifi_menu),
+    MenuItem::toggle("DHCP", dhcp_enabled),
+};
+const Menu network_menu = make_menu("Network", network_items);
+
+const MenuItem oled_items[] = {
+    MenuItem::value("Brightness", brightness, 0, 100, 5),
+    MenuItem::value("Contrast", contrast, 0, 255, 5),
+    MenuItem::toggle("Invert", invert_enabled),
+};
+const Menu oled_menu = make_menu("OLED", oled_items);
+
+const MenuItem theme_items[] = {
+    MenuItem::toggle("Soft", soft_theme),
+    MenuItem::value("Radius", radius, 0, 8),
+};
+const Menu theme_menu = make_menu("Theme", theme_items);
+
+const MenuItem display_items[] = {
+    MenuItem::submenu("OLED", oled_menu),
+    MenuItem::submenu("Theme", theme_menu),
+};
+const Menu display_menu = make_menu("Display", display_items);
+
+const MenuItem root_items[] = {
+    MenuItem::submenu("System", system_menu),
+    MenuItem::submenu("Network", network_menu),
+    MenuItem::submenu("Display", display_menu),
+    MenuItem::action("Reset Defaults", reset_defaults),
+};
+const Menu root_menu = make_menu("Jelly Menu", root_items);
+
+} // namespace
+
+const Menu& demo_menu_root() {
+    return root_menu;
+}
+
+void reset_demo_menu_state() {
+    wifi_enabled = true;
+    dhcp_enabled = true;
+    debug_enabled = false;
+    sleep_enabled = true;
+    invert_enabled = false;
+    soft_theme = true;
+    wifi_channel = 6;
+    log_level = 2;
+    brightness = 72;
+    contrast = 205;
+    radius = 4;
+    battery_warn = 20;
+}
+
+} // namespace epui::demo

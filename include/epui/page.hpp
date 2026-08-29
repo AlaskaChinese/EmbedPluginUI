@@ -13,6 +13,7 @@ public:
     virtual ~Page() = default;
     virtual void draw(Canvas& canvas, std::uint32_t now_ms) = 0;
     virtual void on_key(Key) {}
+    virtual bool captures_key(Key) const { return false; }
 };
 
 class Ui {

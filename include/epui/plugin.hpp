@@ -10,6 +10,7 @@ enum class PluginKind : std::uint8_t {
     Input,
     Sensor,
     Page,
+    Menu,
     Widget,
     Animation,
     Theme,
