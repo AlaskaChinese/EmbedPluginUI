@@ -119,8 +119,7 @@ const MenuItem display_items[] = {
 const Menu display_menu = make_menu("Display", display_items);
 
 // Deliberately longer than one 128x64 page. Labels vary in length so the demo
-// exercises cursor motion, width interpolation, partial bottom-row rendering,
-// and smooth list scrolling.
+// exercises cursor motion, sticky viewport handoff and pixel-clipped partial rows.
 const MenuItem long_items[] = {
     MenuItem::action("Short", demo_action),
     MenuItem::action("Status", demo_action),
@@ -135,8 +134,8 @@ const MenuItem long_items[] = {
 };
 const Menu long_menu = make_menu("Long Menu", long_items);
 
-// The root itself is also longer than one page, so scrolling can be seen
-// without entering a submenu first.
+// The root itself is also longer than one page, so the behavior is visible
+// without entering the dedicated Long Menu first.
 const MenuItem root_items[] = {
     MenuItem::submenu("System", system_menu),
     MenuItem::submenu("Network", network_menu),
@@ -155,17 +154,21 @@ const Menu& demo_menu_root() {
 MenuStyle demo_menu_style() {
     MenuStyle style{};
 
-    // The frame is 11 px high. A 13 px row pitch keeps a clean 2 px gap and
-    // intentionally places row four at y=55 so the simulator demonstrates
-    // bottom-edge rendering instead of hiding the row prematurely.
+    // The frame is 11 px high and rows advance by 13 px. The menu body is
+    // clipped to y=13..59. Ui draws page navigation at y=61..62, so y=60 starts
+    // a four-pixel safe band that menu text, frames and Glass sheen cannot enter.
+    // Crossing rows remain partially visible at the top/bottom cut line.
     style.row_height = 13;
     style.visible_rows = 4;
+    style.viewport_top = 13;
+    style.viewport_bottom = 60;
+    style.allow_partial_rows = true;
 
     style.content_inset_left = 8;
     style.content_inset_right = 8;
 
-    // U8g2-style deterministic motion for Glide/Slide position, width and
-    // long-menu scrolling.
+    // U8g2-style deterministic target motion for Glide/Slide position, width
+    // and scrolling. The visible cursor still follows through the shared spring.
     style.glide_fit_content = true;
     style.glide_min_width = 28;
     style.glide_position_fast_step = 5;
@@ -176,13 +179,11 @@ MenuStyle demo_menu_style() {
     style.glide_scroll_slow_zone = 4;
     style.glide_tick_ms = 16;
 
-    // One shared jelly model now drives Glide, Slide and Glass. Glide/Slide use
-    // their actual pixel-step velocity; Glass uses spring velocity. Glass adds
-    // the motion-only sheen, while the other two remain clean outlines.
     style.glass_sheen_height = 2;
     style.glass_max_stretch = 5;
     style.glass_stretch_per_velocity = 0.35f;
     style.glass_motion_threshold = 0.12f;
+    style.scroll_handoff_kick = 2.0f;
     return style;
 }
 
