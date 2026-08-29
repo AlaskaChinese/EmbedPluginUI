@@ -136,10 +136,10 @@ struct MenuStyle {
     std::uint8_t glass_height{11};
     std::uint8_t glass_radius{4};
 
-    // GlideFrame follows the classic small-OLED two-speed approach: move
+    // GlideFrame generates a deterministic small-OLED target path: move
     // quickly while far from the target, then approach one pixel per logical
-    // tick. GlideFrame animates both position and content-fitted width.
-    // SlideFrame uses the same position/scroll motion but keeps full width.
+    // tick. A real damped spring follows that path for the visible frame.
+    // SlideFrame uses the same target path but keeps full frame width.
     bool glide_fit_content{true};
     std::uint8_t glide_min_width{24};
     std::uint8_t glide_position_fast_step{5};
@@ -150,24 +150,23 @@ struct MenuStyle {
     std::uint8_t glide_scroll_slow_zone{4};
     std::uint16_t glide_tick_ms{16};
 
-    // Deprecated source-compatibility fields. GlideFrame and SlideFrame no
-    // longer use a separate kick spring; all rounded frames now share the
-    // same velocity-driven jelly geometry used by LiquidGlass.
+    // Deprecated source-compatibility fields from the short-lived separate
+    // kick-spring implementation. They are intentionally no longer consumed.
     std::uint8_t frame_jelly_kick{2};
     std::uint8_t frame_jelly_max_stretch{2};
     float frame_jelly_stiffness{0.34f};
     float frame_jelly_damping{0.28f};
 
-    // Shared jelly model for GlideFrame, SlideFrame and LiquidGlass. Relative
-    // motion speed squeezes the frame horizontally and stretches it vertically.
-    // LiquidGlass alone adds the motion-only sheen/highlight on top.
+    // Shared jelly geometry for GlideFrame, SlideFrame and LiquidGlass.
+    // The actual visible spring velocity squeezes the frame horizontally and
+    // stretches it vertically. LiquidGlass alone adds the moving sheen.
     std::uint8_t glass_sheen_height{2};
     std::uint8_t glass_max_stretch{5};
     float glass_stretch_per_velocity{0.35f};
     float glass_motion_threshold{0.12f};
 
-    // Spring motion remains available for Indicator, LiquidGlass, list
-    // scrolling in those styles, and submenu panel transitions.
+    // One spring model is used by Indicator/LiquidGlass and by the visible
+    // rounded-frame follower used by GlideFrame/SlideFrame.
     float spring_stiffness{0.22f};
     float spring_damping{0.35f};
     std::uint16_t max_frame_ms{48};
@@ -217,14 +216,24 @@ public:
     int glide_target_width() const { return glide_width_target_; }
     int glide_scroll_position() const { return glide_scroll_position_; }
     int glide_scroll_target() const { return glide_scroll_target_; }
+
+    // For Glide/Slide this is the visible spring that follows the deterministic
+    // glide path. For Glass it is the existing selection-minus-scroll spring.
+    float frame_motion_position() const {
+        return is_glide_style() ? glide_frame_.position : selection_.position - scroll_.position;
+    }
+    float frame_motion_target() const {
+        return is_glide_style() ? glide_frame_.target : selection_.target - scroll_.target;
+    }
     float frame_motion_velocity() const {
-        return is_glide_style() ? glide_relative_velocity_ : selection_.velocity - scroll_.velocity;
+        return is_glide_style() ? glide_frame_.velocity : selection_.velocity - scroll_.velocity;
     }
     // Kept for source compatibility with the short-lived kick-spring API.
-    // It now reports the signed shared jelly deformation amount.
+    // It reports the signed shared velocity-driven deformation amount.
     float frame_jelly_offset() const {
         return frame_motion_velocity() * style_.glass_stretch_per_velocity;
     }
+
     MenuSelectionStyle selection_style() const { return style_.selection_style; }
     const MenuStyle& style() const { return style_; }
 
@@ -342,7 +351,7 @@ public:
 
     bool jelly_active() const {
         return spring_active(selection_) || spring_active(scroll_) || spring_active(panel_)
-            || glide_active() || absf(glide_relative_velocity_) > style_.glass_motion_threshold;
+            || spring_active(glide_frame_) || glide_active();
     }
 
     void draw(Canvas& canvas, std::uint32_t now_ms) override {
@@ -392,9 +401,8 @@ private:
     }
 
     static bool row_can_draw(int y) {
-        // Keep the header/separator protected, but allow text starting anywhere
-        // inside the physical display. Canvas clips pixels that extend below
-        // the bottom edge, so a partially visible last row remains useful.
+        // Protect the header/separator, but allow a last row to be partially
+        // visible at the physical bottom edge. Canvas clips off-screen pixels.
         return y >= ContentClipTop && y < Canvas::Height;
     }
 
@@ -446,6 +454,7 @@ private:
         const float selected = static_cast<float>(frame.selected * style_.row_height);
         const int glide_selected = static_cast<int>(frame.selected * style_.row_height);
         const int scroll_target = selected_scroll_target();
+        const int glide_relative = glide_selected - scroll_target;
 
         if (snap) {
             reset_spring(selection_, selected);
@@ -454,13 +463,16 @@ private:
             glide_position_target_ = glide_selected;
             glide_scroll_position_ = scroll_target;
             glide_scroll_target_ = scroll_target;
-            glide_relative_velocity_ = 0.0f;
+            reset_spring(glide_frame_, static_cast<float>(glide_relative));
             glide_accumulator_ms_ = 0;
         } else {
             selection_.target = selected;
             scroll_.target = static_cast<float>(scroll_target);
             glide_position_target_ = glide_selected;
             glide_scroll_target_ = scroll_target;
+            // Do not jump glide_frame_.target to the final item. step_glide()
+            // advances the virtual U8g2-style path and feeds each intermediate
+            // relative position to the spring follower.
         }
     }
 
@@ -503,6 +515,10 @@ private:
         glide_toward(glide_scroll_position_, glide_scroll_target_,
                      static_cast<int>(style_.glide_scroll_fast_step),
                      static_cast<int>(style_.glide_scroll_slow_zone));
+
+        // The deterministic path is only a moving target. The visible frame
+        // follows it with exactly the same damped spring model as Glass.
+        glide_frame_.target = static_cast<float>(glide_position_ - glide_scroll_position_);
     }
 
     bool glide_active() const {
@@ -523,32 +539,27 @@ private:
         last_draw_ms_ = now_ms;
         if (elapsed > style_.max_frame_ms) elapsed = style_.max_frame_ms;
 
-        const std::uint32_t glide_elapsed = elapsed;
+        const std::uint32_t spring_elapsed = elapsed;
+
+        // First advance the U8g2-style virtual target so this frame's spring
+        // integration chases the newest intermediate target immediately.
+        const std::uint32_t tick = style_.glide_tick_ms == 0 ? 1u : style_.glide_tick_ms;
+        glide_accumulator_ms_ += spring_elapsed;
+        while (glide_accumulator_ms_ >= tick) {
+            step_glide();
+            glide_accumulator_ms_ -= tick;
+        }
+
+        // Then integrate all visible spring states. Glide/Slide's frame spring
+        // uses the exact same stiffness/damping as Glass.
         while (elapsed > 0) {
             const std::uint32_t step_ms = elapsed > 8 ? 8 : elapsed;
             const float dt = static_cast<float>(step_ms) / 16.0f;
             step_spring(selection_, dt);
             step_spring(scroll_, dt);
             step_spring(panel_, dt);
+            if (is_glide_style()) step_spring(glide_frame_, dt);
             elapsed -= step_ms;
-        }
-
-        const std::uint32_t tick = style_.glide_tick_ms == 0 ? 1u : style_.glide_tick_ms;
-        glide_accumulator_ms_ += glide_elapsed;
-        const int relative_before = glide_position_ - glide_scroll_position_;
-        std::uint32_t ticks = 0;
-        while (glide_accumulator_ms_ >= tick) {
-            step_glide();
-            glide_accumulator_ms_ -= tick;
-            ++ticks;
-        }
-        if (ticks > 0) {
-            const int relative_after = glide_position_ - glide_scroll_position_;
-            glide_relative_velocity_ = static_cast<float>(relative_after - relative_before)
-                / static_cast<float>(ticks);
-        } else {
-            glide_relative_velocity_ *= 0.5f;
-            if (absf(glide_relative_velocity_) < 0.05f) glide_relative_velocity_ = 0.0f;
         }
     }
 
@@ -646,7 +657,7 @@ private:
             draw_item_value(canvas, item, y, i == frame.selected, panel_x);
         }
 
-        draw_selection(canvas, panel_x, scroll);
+        draw_selection(canvas, panel_x);
     }
 
     int shared_jelly_stretch(float relative_velocity) const {
@@ -685,15 +696,16 @@ private:
         }
     }
 
-    void draw_selection(Canvas& canvas, int panel_x, int scroll) {
+    void draw_selection(Canvas& canvas, int panel_x) {
         if (is_glide_style()) {
-            const int selection_y = static_cast<int>(style_.content_top) + glide_position_ - scroll;
+            const int selection_y = static_cast<int>(style_.content_top)
+                + round_to_int(glide_frame_.position);
             const int width = style_.selection_style == MenuSelectionStyle::SlideFrame
                 ? frame_max_width() : std::max(10, glide_width_);
-            const bool moving = glide_active()
-                || absf(glide_relative_velocity_) > style_.glass_motion_threshold;
+            const bool moving = glide_active() || spring_active(glide_frame_)
+                || absf(glide_frame_.velocity) > style_.glass_motion_threshold;
             draw_jelly_frame(canvas, panel_x, selection_y, width,
-                             glide_relative_velocity_, false, moving);
+                             glide_frame_.velocity, false, moving);
             return;
         }
 
@@ -731,13 +743,13 @@ private:
     Spring selection_{};
     Spring scroll_{};
     Spring panel_{};
+    Spring glide_frame_{};
     int glide_position_{0};
     int glide_position_target_{0};
     int glide_width_{0};
     int glide_width_target_{0};
     int glide_scroll_position_{0};
     int glide_scroll_target_{0};
-    float glide_relative_velocity_{0.0f};
     std::uint32_t glide_accumulator_ms_{0};
     bool glide_width_initialized_{false};
     std::uint32_t last_draw_ms_{0};
