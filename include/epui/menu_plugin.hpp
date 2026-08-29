@@ -109,9 +109,7 @@ enum class MenuSelectionStyle : std::uint8_t {
     Indicator,
     GlideFrame,
     SlideFrame,
-    // Backward-compatible source alias. The former liquid/metaball renderer
-    // has been removed; LiquidGlass now maps to the clean GlideFrame motion.
-    LiquidGlass = GlideFrame,
+    LiquidGlass,
 };
 
 struct MenuStyle {
@@ -131,11 +129,11 @@ struct MenuStyle {
     std::uint8_t indicator_height{7};
     MenuSelectionStyle selection_style{MenuSelectionStyle::Indicator};
 
-    // Selection-frame geometry. The glass_* names are retained for source
-    // compatibility; they now describe a plain 1-bit rounded frame.
+    // All rounded-frame styles share this resting geometry. 11 px gives a
+    // 5x7 label two pixels of breathing room above and below.
     std::uint8_t glass_x{3};
     std::uint8_t glass_width{122};
-    std::uint8_t glass_height{9};
+    std::uint8_t glass_height{11};
     std::uint8_t glass_radius{4};
 
     // GlideFrame follows the classic small-OLED two-speed approach: move
@@ -152,8 +150,23 @@ struct MenuStyle {
     std::uint8_t glide_scroll_slow_zone{4};
     std::uint16_t glide_tick_ms{16};
 
-    // Spring motion remains available for the original indicator, its list
-    // scrolling, and submenu panel transitions.
+    // A small decaying elastic offset is layered on GlideFrame/SlideFrame.
+    // The path still follows deterministic pixel stepping; only the frame body
+    // lags, overshoots slightly and squash/stretches around that path.
+    std::uint8_t frame_jelly_kick{2};
+    std::uint8_t frame_jelly_max_stretch{2};
+    float frame_jelly_stiffness{0.34f};
+    float frame_jelly_damping{0.28f};
+
+    // Restored first-generation LiquidGlass. The sheen is motion-only: when
+    // the spring settles the result is a plain rounded frame with no highlight.
+    std::uint8_t glass_sheen_height{2};
+    std::uint8_t glass_max_stretch{5};
+    float glass_stretch_per_velocity{0.35f};
+    float glass_motion_threshold{0.12f};
+
+    // Spring motion remains available for Indicator, LiquidGlass, list
+    // scrolling in those styles, and submenu panel transitions.
     float spring_stiffness{0.22f};
     float spring_damping{0.35f};
     std::uint16_t max_frame_ms{48};
@@ -203,6 +216,7 @@ public:
     int glide_target_width() const { return glide_width_target_; }
     int glide_scroll_position() const { return glide_scroll_position_; }
     int glide_scroll_target() const { return glide_scroll_target_; }
+    float frame_jelly_offset() const { return frame_jelly_.position; }
     MenuSelectionStyle selection_style() const { return style_.selection_style; }
     const MenuStyle& style() const { return style_; }
 
@@ -214,11 +228,8 @@ public:
 
     void set_selection_style(MenuSelectionStyle style) {
         style_.selection_style = style;
-        if (is_frame_style()) {
-            glide_position_ = glide_position_target_;
-            glide_scroll_position_ = glide_scroll_target_;
-            glide_width_initialized_ = false;
-        }
+        sync_selection(true);
+        glide_width_initialized_ = false;
     }
 
     void focus() { focused_ = true; }
@@ -322,7 +333,8 @@ public:
     }
 
     bool jelly_active() const {
-        return spring_active(selection_) || spring_active(scroll_) || spring_active(panel_) || glide_active();
+        return spring_active(selection_) || spring_active(scroll_) || spring_active(panel_)
+            || spring_active(frame_jelly_) || glide_active();
     }
 
     void draw(Canvas& canvas, std::uint32_t now_ms) override {
@@ -372,7 +384,7 @@ private:
     Frame& current_frame() { return frames_[depth_ - 1]; }
     const Frame& current_frame() const { return frames_[depth_ - 1]; }
 
-    bool is_frame_style() const {
+    bool is_glide_style() const {
         return style_.selection_style == MenuSelectionStyle::GlideFrame
             || style_.selection_style == MenuSelectionStyle::SlideFrame;
     }
@@ -404,8 +416,16 @@ private:
     }
 
     int effective_scroll_position() const {
-        if (is_frame_style()) return glide_scroll_position_;
+        if (is_glide_style()) return glide_scroll_position_;
         return round_to_int(scroll_.position);
+    }
+
+    void kick_frame_jelly(int direction) {
+        if (!is_glide_style() || direction == 0 || style_.frame_jelly_kick == 0) return;
+        const float kick = static_cast<float>(style_.frame_jelly_kick);
+        frame_jelly_.position = direction > 0 ? -kick : kick;
+        frame_jelly_.target = 0.0f;
+        frame_jelly_.velocity = 0.0f;
     }
 
     void sync_selection(bool snap) {
@@ -417,16 +437,19 @@ private:
         if (snap) {
             reset_spring(selection_, selected);
             reset_spring(scroll_, static_cast<float>(scroll_target));
+            reset_spring(frame_jelly_, 0.0f);
             glide_position_ = glide_selected;
             glide_position_target_ = glide_selected;
             glide_scroll_position_ = scroll_target;
             glide_scroll_target_ = scroll_target;
             glide_accumulator_ms_ = 0;
         } else {
+            const int old_glide_target = glide_position_target_;
             selection_.target = selected;
             scroll_.target = static_cast<float>(scroll_target);
             glide_position_target_ = glide_selected;
             glide_scroll_target_ = scroll_target;
+            kick_frame_jelly(glide_selected - old_glide_target);
         }
     }
 
@@ -443,9 +466,9 @@ private:
         if (next != old_value && item.callback) item.callback(item.user);
     }
 
-    void step_spring(Spring& spring, float dt) {
-        spring.velocity += (spring.target - spring.position) * style_.spring_stiffness * dt;
-        float damping = 1.0f - style_.spring_damping * dt;
+    static void step_spring_with(Spring& spring, float dt, float stiffness, float damping_value) {
+        spring.velocity += (spring.target - spring.position) * stiffness * dt;
+        float damping = 1.0f - damping_value * dt;
         if (damping < 0.0f) damping = 0.0f;
         spring.velocity *= damping;
         spring.position += spring.velocity * dt;
@@ -453,6 +476,10 @@ private:
             spring.position = spring.target;
             spring.velocity = 0.0f;
         }
+    }
+
+    void step_spring(Spring& spring, float dt) {
+        step_spring_with(spring, dt, style_.spring_stiffness, style_.spring_damping);
     }
 
     void step_glide() {
@@ -468,7 +495,7 @@ private:
     }
 
     bool glide_active() const {
-        if (!is_frame_style()) return false;
+        if (!is_glide_style()) return false;
         return glide_position_ != glide_position_target_
             || glide_width_ != glide_width_target_
             || glide_scroll_position_ != glide_scroll_target_;
@@ -492,6 +519,9 @@ private:
             step_spring(selection_, dt);
             step_spring(scroll_, dt);
             step_spring(panel_, dt);
+            step_spring_with(frame_jelly_, dt,
+                             style_.frame_jelly_stiffness,
+                             style_.frame_jelly_damping);
             elapsed -= step_ms;
         }
 
@@ -539,7 +569,10 @@ private:
     }
 
     int target_frame_width_for_selected(Canvas& canvas) const {
-        if (style_.selection_style == MenuSelectionStyle::SlideFrame) return frame_max_width();
+        if (style_.selection_style == MenuSelectionStyle::SlideFrame
+            || style_.selection_style == MenuSelectionStyle::LiquidGlass) {
+            return frame_max_width();
+        }
 
         const Frame& frame = current_frame();
         if (!frame.menu || frame.menu->count == 0 || frame.selected >= frame.menu->count) {
@@ -561,6 +594,7 @@ private:
     }
 
     void update_glide_width_target(Canvas& canvas) {
+        if (!is_glide_style()) return;
         glide_width_target_ = target_frame_width_for_selected(canvas);
         if (!glide_width_initialized_) {
             glide_width_ = glide_width_target_;
@@ -596,20 +630,74 @@ private:
         draw_selection(canvas, panel_x, scroll);
     }
 
+    void draw_glide_frame(Canvas& canvas, int panel_x, int selection_y) const {
+        const int jelly_offset = round_to_int(frame_jelly_.position);
+        int jelly_stretch = round_to_int(absf(frame_jelly_.position));
+        jelly_stretch = std::max(0, std::min(jelly_stretch,
+            static_cast<int>(style_.frame_jelly_max_stretch)));
+
+        const int base_height = std::max(7, static_cast<int>(style_.glass_height));
+        const int height = base_height + jelly_stretch * 2;
+        const int y = selection_y - 2 + jelly_offset - jelly_stretch;
+        const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
+        int width = style_.selection_style == MenuSelectionStyle::SlideFrame
+            ? frame_max_width() : std::max(10, glide_width_);
+        width = std::max(10, width - jelly_stretch * 2);
+        const int x = panel_x + frame_x() + jelly_stretch;
+        canvas.round_rect(x, y, width, height, radius, true);
+    }
+
+    void draw_liquid_glass(Canvas& canvas, int panel_x, int selection_y) const {
+        const float relative_velocity = selection_.velocity - scroll_.velocity;
+        int stretch = round_to_int(absf(relative_velocity) * style_.glass_stretch_per_velocity);
+        stretch = std::max(0, std::min(stretch, static_cast<int>(style_.glass_max_stretch)));
+
+        const int base_x = frame_x();
+        const int max_width = frame_max_width();
+        int width = max_width - stretch * 2;
+        width = std::max(10, std::min(width, max_width));
+        const int x = panel_x + base_x + stretch;
+        const int base_height = std::max(7, static_cast<int>(style_.glass_height));
+        const int height = base_height + stretch;
+        const int y = selection_y - 2 - stretch / 2;
+        const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
+
+        const bool moving = spring_active(selection_) || spring_active(scroll_)
+            || absf(relative_velocity) > style_.glass_motion_threshold;
+        if (focused_ && moving && style_.glass_sheen_height > 0) {
+            const int sheen_height = std::min(static_cast<int>(style_.glass_sheen_height),
+                                              std::max(1, height - 4));
+            const int sheen_y = relative_velocity >= 0.0f
+                ? y + height - sheen_height - 2
+                : y + 2;
+            canvas.invert_rect(x + 2, sheen_y, std::max(1, width - 4), sheen_height);
+        }
+
+        canvas.round_rect(x, y, width, height, radius, true);
+        if (focused_ && moving && width > radius * 2 + 4) {
+            const int highlight_y = relative_velocity >= 0.0f ? y + 1 : y + height - 2;
+            canvas.line(x + radius + 2, highlight_y,
+                        x + width - radius - 3, highlight_y, true);
+        }
+    }
+
     void draw_selection(Canvas& canvas, int panel_x, int scroll) {
-        if (is_frame_style()) {
+        if (is_glide_style()) {
             const int y = static_cast<int>(style_.content_top) + glide_position_ - scroll;
             if (y < 13 || y > Canvas::Height - 9) return;
-            const int height = std::max(5, static_cast<int>(style_.glass_height));
-            const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
-            const int width = style_.selection_style == MenuSelectionStyle::SlideFrame
-                ? frame_max_width() : std::max(10, glide_width_);
-            canvas.round_rect(panel_x + frame_x(), y - 1, width, height, radius, true);
+            draw_glide_frame(canvas, panel_x, y);
             return;
         }
 
-        const int y = round_to_int(static_cast<float>(style_.content_top) + selection_.position - scroll_.position);
+        const int y = round_to_int(static_cast<float>(style_.content_top)
+            + selection_.position - scroll_.position);
         if (y < 13 || y > Canvas::Height - 9) return;
+
+        if (style_.selection_style == MenuSelectionStyle::LiquidGlass) {
+            draw_liquid_glass(canvas, panel_x, y);
+            return;
+        }
+
         if (focused_) {
             canvas.fill_round_rect(panel_x + style_.indicator_x, y,
                                    style_.indicator_width, style_.indicator_height, 2, true);
@@ -631,6 +719,7 @@ private:
     Spring selection_{};
     Spring scroll_{};
     Spring panel_{};
+    Spring frame_jelly_{};
     int glide_position_{0};
     int glide_position_target_{0};
     int glide_width_{0};

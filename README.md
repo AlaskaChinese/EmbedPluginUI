@@ -20,10 +20,10 @@ The portable core owns rendering, navigation and animation. Platform-specific co
 - 128x64 1-bit Canvas with a 1024-byte framebuffer.
 - Damped-spring jelly page transitions with configurable stiffness and damping, without a second framebuffer.
 - Arbitrary-depth static menu trees with smooth selection, scrolling and submenu motion.
-- Three menu selection animations: spring `Indicator`, content-fitting `GlideFrame`, and fixed-width `SlideFrame`.
+- Four menu selection animations: spring `Indicator`, jelly `GlideFrame`, jelly full-width `SlideFrame`, and motion-highlight `LiquidGlass`.
+- 11-pixel rounded selection frames with application-configurable geometry and symmetric content insets.
 - Smooth animated scrolling for menus longer than one visible page.
 - `Choice` menu items for static enum-like settings without heap allocation.
-- Symmetric, application-configurable frame-to-content insets.
 - Fixed-capacity `UiOverlay` support and a heap-free FPS debug overlay plugin.
 - SSD1306 and SH1106 support.
 - Callback transport for MCU integrations.
@@ -70,7 +70,7 @@ The menu demo exposes:
 Jelly Menu -> Display -> Theme -> Cursor
 ```
 
-Press `Select` to cycle among `Indicator`, `Glide`, and `Slide`. The root menu and `Long Menu` also demonstrate smooth scrolling beyond one page. FPS can be toggled under `Jelly Menu -> System -> Debug -> FPS Overlay`.
+Press `Select` to cycle among `Indicator`, `Glide`, `Slide`, and `Glass`. `Glide` and `Slide` retain clean pixel-stepped paths while their frames briefly lag/stretch and settle like jelly. `Glass` restores the first-generation spring/stretch cursor, but its sheen is visible only while moving and disappears completely at rest. The root menu and `Long Menu` demonstrate smooth scrolling beyond one page. FPS can be toggled under `Jelly Menu -> System -> Debug -> FPS Overlay`.
 
 ## Ubuntu 22.04 development
 
