@@ -88,7 +88,10 @@ constexpr Menu make_menu(const char* title, const MenuItem (&items)[N]) {
 
 enum class MenuSelectionStyle : std::uint8_t {
     Indicator,
-    LiquidGlass,
+    GlideFrame,
+    // Backward-compatible source alias. The old liquid/metaball renderer has
+    // been removed; LiquidGlass now selects the same clean GlideFrame motion.
+    LiquidGlass = GlideFrame,
 };
 
 struct MenuStyle {
@@ -97,8 +100,7 @@ struct MenuStyle {
     std::uint8_t visible_rows{4};
 
     // Legacy layout fields remain source-compatible. New projects should use
-    // content_inset_left/right because those are measured from the selection
-    // frame itself and make symmetric layouts straightforward.
+    // content_inset_left/right, measured from the selection frame itself.
     std::uint8_t text_x{11};
     std::uint8_t right_margin{4};
     std::uint8_t content_inset_left{8};
@@ -109,28 +111,26 @@ struct MenuStyle {
     std::uint8_t indicator_height{7};
     MenuSelectionStyle selection_style{MenuSelectionStyle::Indicator};
 
-    // OLED-native selection frame geometry.
+    // Selection-frame geometry. The glass_* names are retained for source
+    // compatibility; they describe a plain 1-bit rounded frame now.
     std::uint8_t glass_x{3};
     std::uint8_t glass_width{122};
     std::uint8_t glass_height{9};
     std::uint8_t glass_radius{4};
-    std::uint8_t glass_sheen_height{1};
-    std::uint8_t glass_max_stretch{4};
-    float glass_stretch_per_velocity{0.25f};
 
-    // Metaball geometry. The effect is drawn only around the two capsule ends,
-    // so the text band remains readable on a 1-bit display.
-    std::uint8_t liquid_metaball_radius{3};
-    std::uint8_t liquid_bridge_width{1};
-    std::uint8_t liquid_bridge_max_span{18};
-    std::uint8_t liquid_refraction_px{1};
-    std::uint8_t liquid_refraction_radius{5};
-    std::uint8_t liquid_highlight_min{6};
-    std::uint8_t liquid_highlight_max{20};
-    std::uint8_t liquid_trail_length{4};
-    float liquid_motion_threshold{0.12f};
-    bool liquid_dither_trail{false};
+    // GlideFrame follows the simple OLED motion popularized by small U8g2
+    // menus: move quickly while far from the target, then approach 1 px at a
+    // time. Position and width are independent state variables.
+    bool glide_fit_content{true};
+    std::uint8_t glide_min_width{24};
+    std::uint8_t glide_position_fast_step{5};
+    std::uint8_t glide_position_slow_zone{4};
+    std::uint8_t glide_width_fast_step{10};
+    std::uint8_t glide_width_slow_zone{5};
+    std::uint16_t glide_tick_ms{16};
 
+    // Spring motion remains available for the original indicator, scrolling,
+    // and submenu/page-like panel motion.
     float spring_stiffness{0.22f};
     float spring_damping{0.35f};
     std::uint16_t max_frame_ms{48};
@@ -174,18 +174,25 @@ public:
     float selection_position() const { return selection_.position; }
     float scroll_position() const { return scroll_.position; }
     float panel_position() const { return panel_.position; }
-    float liquid_anchor_position() const { return liquid_anchor_position_; }
+    int glide_position() const { return glide_position_; }
+    int glide_target_position() const { return glide_position_target_; }
+    int glide_width() const { return glide_width_; }
+    int glide_target_width() const { return glide_width_target_; }
     MenuSelectionStyle selection_style() const { return style_.selection_style; }
     const MenuStyle& style() const { return style_; }
 
     void set_style(const MenuStyle& style) {
         style_ = style;
         sync_selection(true);
+        glide_width_initialized_ = false;
     }
 
     void set_selection_style(MenuSelectionStyle style) {
         style_.selection_style = style;
-        if (style == MenuSelectionStyle::LiquidGlass) liquid_anchor_position_ = selection_.position;
+        if (style == MenuSelectionStyle::GlideFrame) {
+            glide_position_ = glide_position_target_;
+            glide_width_initialized_ = false;
+        }
     }
 
     void focus() { focused_ = true; }
@@ -198,6 +205,7 @@ public:
         focused_ = focus_menu;
         sync_selection(true);
         reset_spring(panel_, 0.0f);
+        glide_width_initialized_ = false;
     }
 
     bool captures_key(Key key) const override {
@@ -264,6 +272,7 @@ public:
         frames_[depth_++] = {&menu, 0};
         editing_ = false;
         sync_selection(true);
+        glide_width_initialized_ = false;
         reset_spring(panel_, static_cast<float>(Canvas::Width));
         panel_.target = 0.0f;
         return true;
@@ -274,16 +283,18 @@ public:
         --depth_;
         editing_ = false;
         sync_selection(true);
+        glide_width_initialized_ = false;
         reset_spring(panel_, -static_cast<float>(Canvas::Width));
         panel_.target = 0.0f;
         return true;
     }
 
     bool jelly_active() const {
-        return spring_active(selection_) || spring_active(scroll_) || spring_active(panel_);
+        return spring_active(selection_) || spring_active(scroll_) || spring_active(panel_) || glide_active();
     }
 
     void draw(Canvas& canvas, std::uint32_t now_ms) override {
+        update_glide_width_target(canvas);
         advance_animations(now_ms);
         draw_current_menu(canvas, round_to_int(panel_.position));
     }
@@ -302,11 +313,6 @@ private:
 
     static float absf(float value) { return value < 0.0f ? -value : value; }
     static int absi(int value) { return value < 0 ? -value : value; }
-    static float clamp01(float value) {
-        if (value < 0.0f) return 0.0f;
-        if (value > 1.0f) return 1.0f;
-        return value;
-    }
     static int round_to_int(float value) {
         return static_cast<int>(value >= 0.0f ? value + 0.5f : value - 0.5f);
     }
@@ -321,17 +327,33 @@ private:
         return absf(spring.target - spring.position) > 0.05f || absf(spring.velocity) > 0.05f;
     }
 
+    static bool glide_toward(int& value, int target, int fast_step, int slow_zone) {
+        const int difference = target - value;
+        if (difference == 0) return false;
+        const int distance = absi(difference);
+        int step = distance > std::max(0, slow_zone) ? std::max(1, fast_step) : 1;
+        step = std::min(step, distance);
+        value += difference > 0 ? step : -step;
+        return true;
+    }
+
     Frame& current_frame() { return frames_[depth_ - 1]; }
     const Frame& current_frame() const { return frames_[depth_ - 1]; }
 
+    int frame_x() const { return static_cast<int>(style_.glass_x); }
+
+    int frame_max_width() const {
+        const int available = Canvas::Width - frame_x() - 2;
+        return std::max(10, std::min(static_cast<int>(style_.glass_width), available));
+    }
+
     int content_left_x() const {
         return std::min(Canvas::Width - 1,
-                        static_cast<int>(style_.glass_x) + static_cast<int>(style_.content_inset_left));
+                        frame_x() + static_cast<int>(style_.content_inset_left));
     }
 
     int content_right_edge() const {
-        int edge = static_cast<int>(style_.glass_x) + static_cast<int>(style_.glass_width) - 1
-                 - static_cast<int>(style_.content_inset_right);
+        int edge = frame_x() + frame_max_width() - 1 - static_cast<int>(style_.content_inset_right);
         edge = std::min(edge, Canvas::Width - 1);
         return std::max(content_left_x(), edge);
     }
@@ -343,14 +365,18 @@ private:
         std::size_t first = 0;
         if (frame.selected >= rows) first = frame.selected - rows + 1;
         const float scroll = static_cast<float>(first * style_.row_height);
+        const int glide_selected = static_cast<int>(frame.selected * style_.row_height);
+
         if (snap) {
             reset_spring(selection_, selected);
             reset_spring(scroll_, scroll);
-            liquid_anchor_position_ = selected;
+            glide_position_ = glide_selected;
+            glide_position_target_ = glide_selected;
+            glide_accumulator_ms_ = 0;
         } else {
-            liquid_anchor_position_ = selection_.position;
             selection_.target = selected;
             scroll_.target = scroll;
+            glide_position_target_ = glide_selected;
         }
     }
 
@@ -379,15 +405,32 @@ private:
         }
     }
 
+    void step_glide() {
+        glide_toward(glide_position_, glide_position_target_,
+                     static_cast<int>(style_.glide_position_fast_step),
+                     static_cast<int>(style_.glide_position_slow_zone));
+        glide_toward(glide_width_, glide_width_target_,
+                     static_cast<int>(style_.glide_width_fast_step),
+                     static_cast<int>(style_.glide_width_slow_zone));
+    }
+
+    bool glide_active() const {
+        if (style_.selection_style != MenuSelectionStyle::GlideFrame) return false;
+        return glide_position_ != glide_position_target_ || glide_width_ != glide_width_target_;
+    }
+
     void advance_animations(std::uint32_t now_ms) {
         if (!has_draw_time_) {
             last_draw_ms_ = now_ms;
             has_draw_time_ = true;
             return;
         }
+
         std::uint32_t elapsed = now_ms - last_draw_ms_;
         last_draw_ms_ = now_ms;
         if (elapsed > style_.max_frame_ms) elapsed = style_.max_frame_ms;
+
+        const std::uint32_t spring_elapsed = elapsed;
         while (elapsed > 0) {
             const std::uint32_t step_ms = elapsed > 8 ? 8 : elapsed;
             const float dt = static_cast<float>(step_ms) / 16.0f;
@@ -396,7 +439,13 @@ private:
             step_spring(panel_, dt);
             elapsed -= step_ms;
         }
-        if (!spring_active(selection_)) liquid_anchor_position_ = selection_.target;
+
+        const std::uint32_t tick = style_.glide_tick_ms == 0 ? 1u : style_.glide_tick_ms;
+        glide_accumulator_ms_ += spring_elapsed;
+        while (glide_accumulator_ms_ >= tick) {
+            step_glide();
+            glide_accumulator_ms_ -= tick;
+        }
     }
 
     const char* format_item_value(const MenuItem& item, bool selected,
@@ -419,13 +468,41 @@ private:
     }
 
     void draw_item_value(Canvas& canvas, const MenuItem& item, int y, bool selected,
-                         int panel_x, int x_offset = 0, bool on = true) const {
+                         int panel_x) const {
         char value[16]{};
         const char* right = format_item_value(item, selected, value, sizeof(value));
         if (!right) return;
         int x = content_right_edge() - canvas.text_width(right) + 1;
         if (x < content_left_x() + 30) x = content_left_x() + 30;
-        canvas.text(panel_x + x + x_offset, y, right, on);
+        canvas.text(panel_x + x, y, right);
+    }
+
+    int target_frame_width_for_selected(Canvas& canvas) const {
+        const Frame& frame = current_frame();
+        if (!frame.menu || frame.menu->count == 0 || frame.selected >= frame.menu->count) {
+            return frame_max_width();
+        }
+        if (!style_.glide_fit_content) return frame_max_width();
+
+        const MenuItem& item = frame.menu->items[frame.selected];
+        const char* label = item.label ? item.label : "?";
+        int rightmost = content_left_x() + canvas.text_width(label) - 1;
+
+        char value[16]{};
+        const char* right = format_item_value(item, true, value, sizeof(value));
+        if (right) rightmost = std::max(rightmost, content_right_edge());
+
+        int width = rightmost - frame_x() + static_cast<int>(style_.content_inset_right) + 1;
+        width = std::max(width, static_cast<int>(style_.glide_min_width));
+        return std::min(width, frame_max_width());
+    }
+
+    void update_glide_width_target(Canvas& canvas) {
+        glide_width_target_ = target_frame_width_for_selected(canvas);
+        if (!glide_width_initialized_) {
+            glide_width_ = glide_width_target_;
+            glide_width_initialized_ = true;
+        }
     }
 
     void draw_current_menu(Canvas& canvas, int panel_x) {
@@ -453,172 +530,28 @@ private:
             draw_item_value(canvas, item, y, i == frame.selected, panel_x);
         }
 
-        const int selection_y = round_to_int(static_cast<float>(style_.content_top) + selection_.position - scroll_.position);
-        draw_selection(canvas, panel_x, selection_y);
-        if (style_.selection_style == MenuSelectionStyle::LiquidGlass) {
-            apply_liquid_refraction(canvas, menu, panel_x, selection_y);
-        }
+        draw_selection(canvas, panel_x);
     }
 
-    void draw_selection(Canvas& canvas, int panel_x, int selection_y) {
-        if (selection_y < 13 || selection_y > Canvas::Height - 9) return;
-        if (style_.selection_style == MenuSelectionStyle::LiquidGlass) {
-            draw_liquid_glass_selection(canvas, panel_x, selection_y);
+    void draw_selection(Canvas& canvas, int panel_x) {
+        if (style_.selection_style == MenuSelectionStyle::GlideFrame) {
+            const int y = round_to_int(static_cast<float>(style_.content_top + glide_position_) - scroll_.position);
+            if (y < 13 || y > Canvas::Height - 9) return;
+            const int height = std::max(5, static_cast<int>(style_.glass_height));
+            const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
+            canvas.round_rect(panel_x + frame_x(), y - 1,
+                              std::max(10, glide_width_), height, radius, true);
             return;
         }
+
+        const int y = round_to_int(static_cast<float>(style_.content_top) + selection_.position - scroll_.position);
+        if (y < 13 || y > Canvas::Height - 9) return;
         if (focused_) {
-            canvas.fill_round_rect(panel_x + style_.indicator_x, selection_y,
+            canvas.fill_round_rect(panel_x + style_.indicator_x, y,
                                    style_.indicator_width, style_.indicator_height, 2, true);
         } else {
-            canvas.round_rect(panel_x + style_.indicator_x, selection_y,
+            canvas.round_rect(panel_x + style_.indicator_x, y,
                               style_.indicator_width, style_.indicator_height, 2, true);
-        }
-    }
-
-    void fill_disc(Canvas& canvas, int cx, int cy, int radius, bool on = true) const {
-        if (radius <= 0) return;
-        const int rr = radius * radius;
-        for (int dy = -radius; dy <= radius; ++dy) {
-            int half = 0;
-            while ((half + 1) * (half + 1) + dy * dy <= rr) ++half;
-            canvas.line(cx - half, cy + dy, cx + half, cy + dy, on);
-        }
-    }
-
-    void draw_metaball_pair(Canvas& canvas, int cx, int y0, int y1,
-                            int r0, int r1, int neck) const {
-        if (r0 <= 0 || r1 <= 0) return;
-        fill_disc(canvas, cx, y0, r0, true);
-        fill_disc(canvas, cx, y1, r1, true);
-
-        const int delta = y1 - y0;
-        const int span = absi(delta);
-        if (span <= 1 || span > static_cast<int>(style_.liquid_bridge_max_span)) return;
-        const int direction = delta > 0 ? 1 : -1;
-        const int safe_neck = std::max(1, neck);
-
-        for (int i = 1; i < span; ++i) {
-            const float t = static_cast<float>(i) / static_cast<float>(span);
-            const float edge = absf(t * 2.0f - 1.0f);
-            const float end_radius = t < 0.5f ? static_cast<float>(r0) : static_cast<float>(r1);
-            int half = round_to_int(static_cast<float>(safe_neck)
-                + (end_radius - static_cast<float>(safe_neck)) * edge);
-            half = std::max(safe_neck, half);
-            const int y = y0 + direction * i;
-            canvas.line(cx - half, y, cx + half, y, true);
-        }
-    }
-
-    float liquid_progress() const {
-        const float total = absf(selection_.target - liquid_anchor_position_);
-        if (total < 0.01f) return 1.0f;
-        return clamp01(absf(selection_.position - liquid_anchor_position_) / total);
-    }
-
-    void draw_metaball_motion(Canvas& canvas, int x, int y, int width, int height) const {
-        const float speed = absf(selection_.velocity - scroll_.velocity);
-        if (speed <= style_.liquid_motion_threshold) return;
-
-        const int current_center_y = y + height / 2;
-        const int anchor_selection_y = round_to_int(
-            static_cast<float>(style_.content_top) + liquid_anchor_position_ - scroll_.position);
-        const int anchor_center_y = anchor_selection_y - 1 + height / 2;
-        const int target_selection_y = round_to_int(
-            static_cast<float>(style_.content_top) + selection_.target - scroll_.position);
-        const int target_center_y = target_selection_y - 1 + height / 2;
-        const int radius = std::max(2, static_cast<int>(style_.liquid_metaball_radius));
-        const int neck = std::max(1, static_cast<int>(style_.liquid_bridge_width));
-        const int left_cx = x + radius;
-        const int right_cx = x + width - radius - 1;
-        const float progress = liquid_progress();
-
-        if (progress < 0.5f) {
-            const float local = progress * 2.0f;
-            const int source_radius = std::max(1, round_to_int(static_cast<float>(radius) * (1.0f - 0.55f * local)));
-            draw_metaball_pair(canvas, left_cx, anchor_center_y, current_center_y,
-                               source_radius, radius, neck);
-            draw_metaball_pair(canvas, right_cx, anchor_center_y, current_center_y,
-                               source_radius, radius, neck);
-        } else {
-            const float local = (progress - 0.5f) * 2.0f;
-            const int target_radius = std::max(1, round_to_int(static_cast<float>(radius) * (0.45f + 0.55f * local)));
-            draw_metaball_pair(canvas, left_cx, current_center_y, target_center_y,
-                               radius, target_radius, neck);
-            draw_metaball_pair(canvas, right_cx, current_center_y, target_center_y,
-                               radius, target_radius, neck);
-        }
-
-        if (style_.liquid_dither_trail) {
-            const int direction = selection_.velocity >= 0.0f ? -1 : 1;
-            const int trail = static_cast<int>(style_.liquid_trail_length);
-            for (int i = 2; i <= trail; i += 2) {
-                canvas.pixel(left_cx, current_center_y + direction * i, true);
-                canvas.pixel(right_cx, current_center_y + direction * i, true);
-            }
-        }
-    }
-
-    void draw_liquid_highlight(Canvas& canvas, int x, int y, int width, int height,
-                               int radius, float relative_velocity, float speed) const {
-        if (!focused_ || style_.glass_sheen_height == 0 || speed <= style_.liquid_motion_threshold) return;
-        const int min_length = static_cast<int>(style_.liquid_highlight_min);
-        const int max_length = std::max(min_length, static_cast<int>(style_.liquid_highlight_max));
-        int length = min_length + round_to_int(speed * 2.5f);
-        length = std::max(2, std::min(length, max_length));
-        length = std::min(length, std::max(2, width - radius * 2 - 4));
-        const int start = relative_velocity >= 0.0f
-            ? x + radius + 2
-            : x + width - radius - 2 - length;
-        const int edge_y = relative_velocity >= 0.0f ? y + height : y - 1;
-        canvas.line(start, edge_y, start + length - 1, edge_y, true);
-    }
-
-    void draw_liquid_glass_selection(Canvas& canvas, int panel_x, int selection_y) {
-        const float relative_velocity = selection_.velocity - scroll_.velocity;
-        const float speed = absf(relative_velocity);
-        int squeeze = round_to_int(speed * style_.glass_stretch_per_velocity);
-        squeeze = std::max(0, std::min(squeeze, static_cast<int>(style_.glass_max_stretch)));
-
-        const int base_x = static_cast<int>(style_.glass_x);
-        const int max_width = std::max(10, Canvas::Width - base_x - 2);
-        int width = static_cast<int>(style_.glass_width) - squeeze * 2;
-        width = std::max(10, std::min(width, max_width));
-        const int x = panel_x + base_x + squeeze;
-        const int height = std::max(5, static_cast<int>(style_.glass_height));
-        const int y = selection_y - 1;
-        const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
-
-        canvas.round_rect(x, y, width, height, radius, true);
-        draw_metaball_motion(canvas, x, y, width, height);
-        draw_liquid_highlight(canvas, x, y, width, height, radius, relative_velocity, speed);
-    }
-
-    void apply_liquid_refraction(Canvas& canvas, const Menu& menu, int panel_x, int selection_y) const {
-        const float relative_velocity = selection_.velocity - scroll_.velocity;
-        const float speed = absf(relative_velocity);
-        if (speed <= style_.liquid_motion_threshold || style_.liquid_refraction_px == 0) return;
-
-        const int radius = static_cast<int>(style_.liquid_refraction_radius);
-        const int amount = static_cast<int>(style_.liquid_refraction_px);
-        const Frame& frame = current_frame();
-
-        for (std::size_t i = 0; i < menu.count; ++i) {
-            const int y = round_to_int(static_cast<float>(style_.content_top + i * style_.row_height) - scroll_.position);
-            if (y < 13 || y > Canvas::Height - 10) continue;
-            const int distance = y - selection_y;
-            if (absi(distance) > radius) continue;
-
-            int offset = amount;
-            if (distance < 0) offset = -amount;
-            else if (distance == 0 && relative_velocity < 0.0f) offset = -amount;
-
-            const MenuItem& item = menu.items[i];
-            const char* label = item.label ? item.label : "?";
-            const int label_x = panel_x + content_left_x();
-            canvas.text(label_x, y, label, false);
-            draw_item_value(canvas, item, y, i == frame.selected, panel_x, 0, false);
-            canvas.text(label_x + offset, y, label, true);
-            draw_item_value(canvas, item, y, i == frame.selected, panel_x, offset, true);
         }
     }
 
@@ -634,7 +567,12 @@ private:
     Spring selection_{};
     Spring scroll_{};
     Spring panel_{};
-    float liquid_anchor_position_{0.0f};
+    int glide_position_{0};
+    int glide_position_target_{0};
+    int glide_width_{0};
+    int glide_width_target_{0};
+    std::uint32_t glide_accumulator_ms_{0};
+    bool glide_width_initialized_{false};
     std::uint32_t last_draw_ms_{0};
     bool has_draw_time_{false};
 };
