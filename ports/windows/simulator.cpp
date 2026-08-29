@@ -1,6 +1,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <psapi.h>
+#include <chrono>
 #include <cstdint>
+#include <limits>
 #include "app.hpp"
 
 using namespace epui;
@@ -11,10 +14,28 @@ constexpr int kPad = 24;
 constexpr int kClientW = Canvas::Width * kScale + kPad * 2;
 constexpr int kClientH = Canvas::Height * kScale + kPad * 2;
 
+using Clock = std::chrono::steady_clock;
 epui::demo::SimulatorUi g_app;
 
 std::uint32_t now_ms() {
     return static_cast<std::uint32_t>(GetTickCount64() & 0xffffffffu);
+}
+
+std::uint32_t elapsed_us(Clock::time_point begin, Clock::time_point end) {
+    using namespace std::chrono;
+    const auto value = duration_cast<microseconds>(end - begin).count();
+    if (value <= 0) return 0;
+    const auto limit = static_cast<long long>(std::numeric_limits<std::uint32_t>::max());
+    return static_cast<std::uint32_t>(value > limit ? limit : value);
+}
+
+bool process_memory_probe(void*, DebugMemoryStats& out) {
+    PROCESS_MEMORY_COUNTERS counters{};
+    counters.cb = sizeof(counters);
+    if (!GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters))) return false;
+    out.used_bytes = static_cast<std::uint64_t>(counters.WorkingSetSize);
+    out.total_bytes = 0;
+    return true;
 }
 
 void handle_key(WPARAM key) {
@@ -44,7 +65,10 @@ void paint(HWND hwnd) {
     FillRect(mem, &client, bg);
     DeleteObject(bg);
 
+    const auto render_begin = Clock::now();
     g_app.ui().render(g_app.canvas(), now_ms());
+    g_app.diagnostics().record_render_time_us(elapsed_us(render_begin, Clock::now()));
+    const auto transfer_begin = Clock::now();
 
     RECT bezel{kPad - 8, kPad - 8,
                kPad + Canvas::Width * kScale + 8,
@@ -72,6 +96,9 @@ void paint(HWND hwnd) {
     const char* hint = "A/D or arrows: move/page   Enter: select   Esc: back/unfocus";
     TextOutA(mem, kPad, kClientH - 16, hint, lstrlenA(hint));
     BitBlt(hdc, 0, 0, client.right, client.bottom, mem, 0, 0, SRCCOPY);
+    g_app.diagnostics().record_transfer(elapsed_us(transfer_begin, Clock::now()),
+                                        Canvas::BufferSize, true);
+
     SelectObject(mem, old);
     DeleteObject(bitmap);
     DeleteDC(mem);
@@ -91,6 +118,8 @@ LRESULT CALLBACK proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 } // namespace
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show) {
+    g_app.diagnostics().set_memory_probe(process_memory_probe);
+
     const char* klass = "EmbedPluginUISimulator";
     WNDCLASSA wc{};
     wc.lpfnWndProc = proc;

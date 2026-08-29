@@ -6,11 +6,12 @@ namespace {
 bool wifi_enabled = true;
 bool dhcp_enabled = true;
 bool debug_enabled = false;
-bool fps_overlay = true;
+bool diagnostics_overlay = true;
 bool sleep_enabled = true;
 bool invert_enabled = false;
 bool soft_theme = true;
 std::uint8_t cursor_style_index = 1;
+std::uint8_t diagnostics_view_index = 0;
 int wifi_channel = 6;
 int log_level = 2;
 int brightness = 72;
@@ -18,13 +19,21 @@ int contrast = 205;
 int radius = 4;
 int battery_warn = 20;
 MenuPagePlugin<12>* bound_menu = nullptr;
-FpsDebugPlugin* bound_fps = nullptr;
+DiagnosticsPlugin* bound_diagnostics = nullptr;
 
 const char* const cursor_style_options[] = {
     "Indicator",
     "Glide",
     "Slide",
     "Glass",
+};
+
+const char* const diagnostics_view_options[] = {
+    "Summary",
+    "FPS",
+    "Timing",
+    "Memory",
+    "Transfer",
 };
 
 void apply_cursor_style(void*) {
@@ -46,8 +55,30 @@ void apply_cursor_style(void*) {
     }
 }
 
-void apply_fps_overlay(void*) {
-    if (bound_fps) bound_fps->set_visible(fps_overlay);
+void apply_diagnostics_overlay(void*) {
+    if (bound_diagnostics) bound_diagnostics->set_visible(diagnostics_overlay);
+}
+
+void apply_diagnostics_view(void*) {
+    if (!bound_diagnostics) return;
+    switch (diagnostics_view_index) {
+        case 1:
+            bound_diagnostics->set_view(DebugMetricView::Fps);
+            break;
+        case 2:
+            bound_diagnostics->set_view(DebugMetricView::Timing);
+            break;
+        case 3:
+            bound_diagnostics->set_view(DebugMetricView::Memory);
+            break;
+        case 4:
+            bound_diagnostics->set_view(DebugMetricView::Transfer);
+            break;
+        case 0:
+        default:
+            bound_diagnostics->set_view(DebugMetricView::Summary);
+            break;
+    }
 }
 
 void demo_action(void*) {}
@@ -74,7 +105,8 @@ const MenuItem power_items[] = {
 const Menu power_menu = make_menu("Power", power_items);
 
 const MenuItem debug_items[] = {
-    MenuItem::toggle("FPS Overlay", fps_overlay, apply_fps_overlay),
+    MenuItem::toggle("Diag Overlay", diagnostics_overlay, apply_diagnostics_overlay),
+    MenuItem::choice("Metric", diagnostics_view_index, diagnostics_view_options, apply_diagnostics_view),
     MenuItem::toggle("Verbose", debug_enabled),
 };
 const Menu debug_menu = make_menu("Debug", debug_items);
@@ -192,20 +224,22 @@ void bind_demo_menu(MenuPagePlugin<12>* menu) {
     apply_cursor_style(nullptr);
 }
 
-void bind_demo_fps_debug(FpsDebugPlugin* fps) {
-    bound_fps = fps;
-    apply_fps_overlay(nullptr);
+void bind_demo_diagnostics(DiagnosticsPlugin* diagnostics) {
+    bound_diagnostics = diagnostics;
+    apply_diagnostics_overlay(nullptr);
+    apply_diagnostics_view(nullptr);
 }
 
 void reset_demo_menu_state() {
     wifi_enabled = true;
     dhcp_enabled = true;
     debug_enabled = false;
-    fps_overlay = true;
+    diagnostics_overlay = true;
     sleep_enabled = true;
     invert_enabled = false;
     soft_theme = true;
     cursor_style_index = 1;
+    diagnostics_view_index = 0;
     wifi_channel = 6;
     log_level = 2;
     brightness = 72;
@@ -213,7 +247,8 @@ void reset_demo_menu_state() {
     radius = 4;
     battery_warn = 20;
     apply_cursor_style(nullptr);
-    apply_fps_overlay(nullptr);
+    apply_diagnostics_overlay(nullptr);
+    apply_diagnostics_view(nullptr);
 }
 
 } // namespace epui::demo

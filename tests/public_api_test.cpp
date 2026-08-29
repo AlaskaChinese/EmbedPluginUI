@@ -1,6 +1,7 @@
 #include "epui/animation_plugin.hpp"
 #include "epui/callback_transport.hpp"
 #include "epui/canvas.hpp"
+#include "epui/diagnostics_plugin.hpp"
 #include "epui/display_plugin.hpp"
 #include "epui/encoder_input_plugin.hpp"
 #include "epui/event_bus.hpp"
@@ -34,7 +35,8 @@ int main() {
     epui::Canvas canvas;
     epui::Ui ui;
     PublicPage page(ui);
-    epui::FpsDebugPlugin fps(ui);
+    epui::DiagnosticsPlugin diagnostics(ui);
+    epui::FpsDebugPlugin* compatibility = &diagnostics;
     page.draw(canvas, 0);
-    return canvas.data()[0] == 0 || fps.kind() != epui::PluginKind::Debug ? 1 : 0;
+    return canvas.data()[0] == 0 || compatibility->kind() != epui::PluginKind::Debug ? 1 : 0;
 }

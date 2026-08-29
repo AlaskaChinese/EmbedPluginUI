@@ -1,55 +1,159 @@
-# FPS debug plugin
+# Diagnostics debug plugin
 
-`FpsDebugPlugin` is a heap-free `UiOverlay` plugin that measures and displays the current UI frame rate.
+`DiagnosticsPlugin` is a heap-free `UiOverlay` debug plugin for runtime performance diagnostics. It keeps the original FPS functionality and adds frame cadence, render timing, memory, and display/transport measurements.
+
+The original names remain source-compatible:
+
+```cpp
+using FpsDebugPlugin = DiagnosticsPlugin;
+using FpsDebugStyle = DiagnosticsStyle;
+```
+
+New code should include `epui/diagnostics_plugin.hpp` directly.
+
+## Metrics
+
+The plugin can track:
+
+- FPS over a configurable sampling window.
+- average frame interval (`frame_time_ms`).
+- latest UI render duration (`record_render_time_us`).
+- memory used/total bytes from direct values or a platform memory probe.
+- latest transfer/present duration, logical bytes, derived bytes/second, transfer count, and failure count.
+
+No dynamic allocation, RTTI, `std::function`, or background thread is required.
+
+## Basic use
 
 ```cpp
 epui::Ui ui;
-epui::FpsDebugPlugin fps(ui);
-fps.start();
+epui::DiagnosticsPlugin diagnostics(ui);
+diagnostics.start();
 
-// ui.render(canvas, now_ms) automatically counts one frame.
+// Ui::render() automatically counts frames while auto_sample is enabled.
+ui.render(canvas, now_ms);
 ```
 
-The default overlay is drawn at the bottom-right of the 128x64 framebuffer and samples over a 500 ms window. It renders a compact value such as `FPS 60.1`.
+## Render and transfer instrumentation
 
-## Runtime control
+The framework deliberately does not assume a timer API. Platforms measure around their own calls and feed the result to the plugin:
 
 ```cpp
-fps.set_visible(false);  // keep sampling, hide text
-fps.set_visible(true);
+const auto render_begin_us = micros();
+ui.render(canvas, now_ms);
+diagnostics.record_render_time_us(micros() - render_begin_us);
+
+const auto tx_begin_us = micros();
+const bool ok = display.present(canvas);
+diagnostics.record_transfer(micros() - tx_begin_us,
+                            epui::Canvas::BufferSize,
+                            ok);
 ```
 
-The Ubuntu simulator exposes this under `Jelly Menu -> System -> Debug -> FPS Overlay`.
+For a physical OLED, `bytes` can be the actual framebuffer/display payload. For the desktop simulator it is the logical 1024-byte framebuffer while the duration measures the backend present call.
 
-## Render FPS vs presented FPS
-
-By default the plugin counts `Ui::render()` calls because it is registered as a `UiOverlay`. This is the most useful measure for the simulator and for embedded applications that render once before each display flush.
-
-If a platform wants to measure successful physical display presents instead, disable automatic sampling and call `mark_frame()` after the display transfer succeeds:
+Available transfer getters include:
 
 ```cpp
-fps.set_auto_sample(false);
+diagnostics.transfer_time_us();
+diagnostics.transfer_bytes();
+diagnostics.transfer_rate_bps();
+diagnostics.transfer_count();
+diagnostics.transfer_failures();
+diagnostics.last_transfer_ok();
+```
+
+## Memory sources
+
+Applications can push memory values directly:
+
+```cpp
+diagnostics.set_memory_bytes(used_bytes, total_bytes);
+```
+
+or install a zero-allocation platform callback:
+
+```cpp
+bool read_memory(void*, epui::DebugMemoryStats& out) {
+    out.used_bytes = current_used_sram();
+    out.total_bytes = total_sram();
+    return true;
+}
+
+diagnostics.set_memory_probe(read_memory);
+```
+
+The probe is refreshed when an FPS sampling window closes and can also be refreshed explicitly with `refresh_memory()`.
+
+Typical platform mappings are:
+
+- STM32: SRAM usage or RTOS heap statistics.
+- ESP-IDF: heap capability/free-heap APIs.
+- FreeRTOS: heap usage/high-water information supplied by the application.
+- Linux/Windows simulator: process resident/working-set memory.
+
+## Overlay views
+
+A single compact line can be switched at runtime:
+
+```cpp
+diagnostics.set_view(epui::DebugMetricView::Summary);
+diagnostics.set_view(epui::DebugMetricView::Fps);
+diagnostics.set_view(epui::DebugMetricView::Timing);
+diagnostics.set_view(epui::DebugMetricView::Memory);
+diagnostics.set_view(epui::DebugMetricView::Transfer);
+```
+
+Typical output is intentionally compact for 128x64 monochrome OLEDs:
+
+```text
+F60.0 16.7ms
+FPS 60.0
+R0.4 T1.2ms
+MEM 23.4M
+TX 1.2ms 1.0K
+```
+
+A failed last transfer uses the `TX!` prefix.
+
+## Presented FPS instead of render FPS
+
+By default the overlay counts `Ui::render()` calls. To define FPS by successful physical presents instead:
+
+```cpp
+diagnostics.set_auto_sample(false);
 
 ui.render(canvas, now_ms);
 if (display.present(canvas)) {
-    fps.mark_frame(now_ms);
+    diagnostics.mark_frame(now_ms);
 }
 ```
 
-The overlay will then show the most recently sampled presented-frame rate on the next render.
+## Demo integration
+
+The desktop simulator measures real render and backend-present durations and installs a process-memory probe. The menu exposes:
+
+```text
+Jelly Menu
+└── System
+    └── Debug
+        ├── Diag Overlay  ON/OFF
+        ├── Metric        Summary/FPS/Timing/Memory/Transfer
+        └── Verbose       ON/OFF
+```
+
+The demo menu page itself starts unfocused. Left/right therefore continue switching top-level pages until Enter/Select explicitly focuses the menu; Back at the root releases focus again.
 
 ## Styling
 
 ```cpp
-epui::FpsDebugStyle style;
+epui::DiagnosticsStyle style;
 style.x = -1;                 // negative = right aligned
 style.y = 54;
 style.background = true;
 style.padding = 1;
 style.sample_window_ms = 500;
-style.label = "FPS";
+style.view = epui::DebugMetricView::Summary;
 
-epui::FpsDebugPlugin fps(ui, "fps-debug", style);
+epui::DiagnosticsPlugin diagnostics(ui, "diagnostics", style);
 ```
-
-The plugin uses fixed integer counters and fixed-size text buffers; it does not allocate memory dynamically.
