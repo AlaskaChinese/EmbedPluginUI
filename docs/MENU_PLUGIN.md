@@ -75,7 +75,32 @@ style.row_height = 13;
 
 The Ubuntu demo uses a 13-pixel row pitch so neighboring 11-pixel frames retain a clean 2-pixel gap.
 
-Rows near the physical bottom edge are no longer discarded by a conservative fixed margin. If a row begins inside the 128x64 framebuffer, it is rendered and `Canvas` clips any pixels that extend below the display. This means a fourth row at `y = 55` remains visible instead of disappearing entirely. The same intersection rule is used for selection frames, so partial bottom-edge frames can be shown while scrolling.
+## Pixel viewport and safe zones
+
+Menu body rendering has its own configurable pixel viewport:
+
+```cpp
+style.viewport_top = 13;
+style.viewport_bottom = 60;  // exclusive
+style.allow_partial_rows = true;
+```
+
+`viewport_bottom` is exclusive. On the 128x64 demo, the menu can therefore draw only in `y = 13..59`; `Ui` draws its page navigation at `y = 61..62`, so `y = 60..63` becomes a protected bottom band.
+
+The viewport uses the reusable `Canvas::set_clip_rect()` primitive. Text, rounded frames and `LiquidGlass` inverse sheen are all clipped at the pixel level. A row crossing the boundary is not discarded: with `allow_partial_rows = true`, only the pixels inside the viewport remain visible. This creates the intended "horizontal cut" hint that more content exists beyond the edge.
+
+For the demo geometry:
+
+```text
+content_top      = 16
+row_height       = 13
+glass_height     = 11
+viewport_bottom  = 60
+```
+
+selecting the fourth row would normally put its text at `y = 55` and its 11-pixel frame at roughly `y = 53..63`. The viewport follower therefore raises the list by exactly 4 pixels. The selected frame settles at `y = 49..59`, fully visible above the safe zone, while the first row moves to `y = 12` and is partially clipped by the `y = 13` top boundary.
+
+Applications are free to change these values for another OLED geometry or for a different footer/header layout.
 
 ## Four selection animations
 
@@ -89,7 +114,7 @@ menu.set_selection_style(epui::MenuSelectionStyle::Indicator);
 
 ### GlideFrame
 
-`GlideFrame` keeps the classic small-U8g2 two-speed path, but that path is now only a **virtual target**:
+`GlideFrame` keeps the classic small-U8g2 two-speed path, but that path is only a **virtual target**:
 
 ```cpp
 style.selection_style = epui::MenuSelectionStyle::GlideFrame;
@@ -103,7 +128,7 @@ style.glide_scroll_slow_zone = 4;
 style.glide_tick_ms = 16;
 ```
 
-The visible frame no longer sits directly on `glide_position - glide_scroll`. Instead, a damped spring follows every intermediate relative position produced by that deterministic path:
+The visible frame no longer sits directly on `glide_position - glide_scroll`. A damped spring follows every intermediate relative position produced by that deterministic path:
 
 ```text
 selected item
@@ -125,7 +150,7 @@ This preserves the clean U8g2 timing while giving the cursor the same physical s
 menu.set_selection_style(epui::MenuSelectionStyle::SlideFrame);
 ```
 
-Both `GlideFrame` and `SlideFrame` therefore have real position overshoot/rebound now, not only velocity-driven geometric deformation.
+Both `GlideFrame` and `SlideFrame` therefore have real position overshoot/rebound, not only velocity-driven geometric deformation.
 
 ### Shared rounded-frame spring and jelly
 
@@ -171,30 +196,36 @@ style.glass_motion_threshold = 0.12f;
 
 Once the spring settles, LiquidGlass becomes a plain full-width rounded frame with no permanent sheen or highlight line.
 
-## Smooth scrolling beyond one page
+## Sticky scrolling beyond one page
 
-A menu longer than `visible_rows` now uses a **sticky viewport**, not a stateless `selected_index -> page` calculation. Each menu frame remembers `first_visible`.
+Long menus combine two layers of viewport state:
 
-The rule is simple:
+1. `first_visible` keeps a sticky logical row window, so moving back to an item already visible does not immediately drag the page.
+2. A per-menu pixel `scroll_target` adds only the extra offset required to keep the selected resting frame inside `viewport_top..viewport_bottom`.
+
+The resulting rule is:
 
 ```text
-new selection is still inside current viewport
-    -> keep scroll fixed
+selected frame fits inside current pixel viewport
+    -> keep list scroll fixed
     -> move only the cursor
 
-new selection crosses bottom edge
-    -> advance first_visible by one row
-    -> smoothly scroll content upward
-    -> keep cursor near the bottom slot
+selected frame would cross bottom safe edge
+    -> raise the list only as many pixels as required
+    -> keep the selected frame fully visible
+    -> allow older top rows to become partially clipped
 
-new selection crosses top edge
-    -> move first_visible upward
-    -> smoothly scroll content downward
+moving upward while selected frame still fits
+    -> keep list fixed
+    -> move the cursor upward first
+
+selected frame would cross top comfort edge
+    -> scroll the list downward only as much as required
 ```
 
-This fixes the common small-screen failure where moving from item 5 back to item 4 immediately drags the entire page downward. With a sticky viewport, item 4 is already visible, so the list remains where it is and the frame simply moves upward.
+For the demo, selecting row four changes the exact target from `0` to `4`, not a whole 13-pixel row. Continuing down then produces `17`, `30`, and so on. From a deeper position, moving upward keeps `30` while the cursor moves from item six to five to four; only when the frame reaches the top comfort edge does the target begin decreasing (`30 -> 26 -> 13 -> 0`).
 
-GlideFrame and SlideFrame keep the deterministic two-speed list scroll path, while Indicator and LiquidGlass use their spring scroll path:
+GlideFrame and SlideFrame keep the deterministic two-speed list scroll path, while Indicator and LiquidGlass use the spring scroll path:
 
 ```cpp
 style.visible_rows = 4;
@@ -203,7 +234,7 @@ style.glide_scroll_fast_step = 4;
 style.glide_scroll_slow_zone = 4;
 ```
 
-When moving downward at the bottom edge, the selected row can remain in the same on-screen slot while the list scrolls underneath it. Rounded-frame styles therefore get a small shared spring handoff so the key press still has visible cursor motion:
+When the viewport target changes, rounded-frame styles retain the shared edge-handoff spring:
 
 ```cpp
 style.scroll_handoff_kick = 2.0f;
@@ -211,16 +242,16 @@ style.scroll_handoff_kick = 2.0f;
 
 The handoff uses the same `spring_stiffness` and `spring_damping` as the rest of the frame motion. Set it lower for a calmer edge transition or to `0.0f` if an application wants the cursor perfectly pinned while the content scrolls.
 
-`first_visible_index()` is exposed for diagnostics/tests when an application needs to inspect the active viewport.
-
-The Ubuntu simulator contains both a root menu longer than one page and a dedicated ten-item `Long Menu`. With the demo's 13-pixel row pitch, the fourth row intentionally sits near the bottom edge so partial rendering, downward edge handoff and upward sticky-window behavior can all be inspected directly.
+`first_visible_index()` and `viewport_scroll_target()` are exposed for diagnostics/tests.
 
 ## Ubuntu demo
 
-The simulator exposes all four styles under:
+The simulator contains both a root menu longer than one page and a dedicated ten-item `Long Menu`, so the fourth-row lift, clipped top row, protected footer and frame-first upward navigation can be inspected directly.
+
+All four cursor styles remain selectable under:
 
 ```text
 Jelly Menu -> Display -> Theme -> Cursor
 ```
 
-Press `Select` on `Cursor` to cycle through `Indicator`, `Glide`, `Slide` and `Glass`. The demo defaults to `Glide`, so the spring-follow and sticky long-menu behavior are visible immediately.
+Press `Select` on `Cursor` to cycle through `Indicator`, `Glide`, `Slide` and `Glass`. The demo defaults to `Glide`.

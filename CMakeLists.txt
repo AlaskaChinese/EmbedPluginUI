@@ -77,6 +77,10 @@ if(EPUI_BUILD_TESTS)
     target_link_libraries(epui_menu_plugin_test PRIVATE epui)
     add_test(NAME epui_menu_plugin COMMAND epui_menu_plugin_test)
 
+    add_executable(epui_menu_viewport_test tests/menu_viewport_test.cpp)
+    target_link_libraries(epui_menu_viewport_test PRIVATE epui)
+    add_test(NAME epui_menu_viewport COMMAND epui_menu_viewport_test)
+
     add_executable(epui_page_transition_test tests/page_transition_test.cpp)
     target_link_libraries(epui_page_transition_test PRIVATE epui)
     add_test(NAME epui_page_transition COMMAND epui_page_transition_test)
