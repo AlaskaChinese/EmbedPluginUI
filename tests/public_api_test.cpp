@@ -7,6 +7,7 @@
 #include "epui/gpio_input_plugin.hpp"
 #include "epui/i2c_transport.hpp"
 #include "epui/input_plugin.hpp"
+#include "epui/menu_plugin.hpp"
 #include "epui/oled.hpp"
 #include "epui/oled_display_plugin.hpp"
 #include "epui/page.hpp"

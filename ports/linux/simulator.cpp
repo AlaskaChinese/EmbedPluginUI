@@ -73,7 +73,7 @@ public:
                 }
             }
         }
-        const char* hint = "Left/Right or A/D: page   Enter: select   Esc: back";
+        const char* hint = "A/D or arrows: move/page   Enter: select   Esc: back/unfocus";
         XSetForeground(display_, gc_, 0xA5ADB8);
         XDrawString(display_, window_, gc_, kPad, kHeight - 10, hint, static_cast<int>(std::strlen(hint)));
         XFlush(display_);
@@ -112,8 +112,8 @@ public:
             }
             if (event.type != KeyPress) continue;
             const KeySym key = XLookupKeysym(&event.xkey, 0);
-            if (key == XK_Right || key == XK_d || key == XK_D) out.key = Key::Next;
-            else if (key == XK_Left || key == XK_a || key == XK_A) out.key = Key::Prev;
+            if (key == XK_Right || key == XK_Down || key == XK_d || key == XK_D) out.key = Key::Next;
+            else if (key == XK_Left || key == XK_Up || key == XK_a || key == XK_A) out.key = Key::Prev;
             else if (key == XK_Return || key == XK_space) out.key = Key::Select;
             else if (key == XK_Escape) out.key = Key::Back;
             else continue;

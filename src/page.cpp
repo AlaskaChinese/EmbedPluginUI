@@ -24,7 +24,17 @@ bool Ui::remove_page(Page& page) {
 
 float Ui::ease_out_cubic(float t) { t = std::max(0.0f, std::min(1.0f, t)); const float u = 1.0f - t; return 1.0f - u*u*u; }
 void Ui::begin_transition(int direction, std::uint32_t now_ms) { if (count_ < 2 || transition_active_) return; direction_ = direction > 0 ? 1 : -1; target_ = direction_ > 0 ? (current_ + 1) % count_ : (current_ + count_ - 1) % count_; transition_start_ = now_ms; transition_active_ = true; }
-void Ui::handle(Key key, std::uint32_t now_ms) { if (count_ == 0) return; if (key == Key::Next) begin_transition(1, now_ms); else if (key == Key::Prev) begin_transition(-1, now_ms); else pages_[current_]->on_key(key); }
+void Ui::handle(Key key, std::uint32_t now_ms) {
+    if (count_ == 0) return;
+    Page* page = pages_[current_];
+    if (page->captures_key(key)) {
+        page->on_key(key);
+        return;
+    }
+    if (key == Key::Next) begin_transition(1, now_ms);
+    else if (key == Key::Prev) begin_transition(-1, now_ms);
+    else page->on_key(key);
+}
 void Ui::render(Canvas& canvas, std::uint32_t now_ms) {
     canvas.clear(); if (count_ == 0) return;
     if (!transition_active_) { canvas.reset_origin(); pages_[current_]->draw(canvas, now_ms); }

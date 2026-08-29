@@ -19,6 +19,7 @@ set(EPUI_SIM_UI_SOURCES
     examples/simulator_ui/home_page.cpp
     examples/simulator_ui/sensor_page.cpp
     examples/simulator_ui/about_page.cpp
+    examples/simulator_ui/menu_demo.cpp
 )
 
 option(EPUI_BUILD_WINDOWS_SIM "Build the Win32 OLED simulator" ON)
@@ -71,6 +72,10 @@ if(EPUI_BUILD_TESTS)
     add_executable(epui_advanced_runtime_test tests/advanced_runtime_test.cpp)
     target_link_libraries(epui_advanced_runtime_test PRIVATE epui)
     add_test(NAME epui_advanced_runtime COMMAND epui_advanced_runtime_test)
+
+    add_executable(epui_menu_plugin_test tests/menu_plugin_test.cpp)
+    target_link_libraries(epui_menu_plugin_test PRIVATE epui)
+    add_test(NAME epui_menu_plugin COMMAND epui_menu_plugin_test)
 
     add_executable(epui_public_api_test tests/public_api_test.cpp)
     target_link_libraries(epui_public_api_test PRIVATE epui)
