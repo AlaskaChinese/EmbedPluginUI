@@ -50,6 +50,10 @@ int main() {
     assert(pixel_on(invert_canvas, 5, 5));
     assert(!pixel_on(invert_canvas, 4, 4));
 
+    static_assert(static_cast<unsigned>(epui::MenuSelectionStyle::LiquidGlass)
+                  == static_cast<unsigned>(epui::MenuSelectionStyle::GlideFrame),
+                  "LiquidGlass must remain a source-compatible GlideFrame alias");
+
     epui::Ui ui;
     epui::MenuPagePlugin<8> menu(ui, root, "test-menu");
     assert(menu.kind() == epui::PluginKind::Menu);
@@ -61,11 +65,11 @@ int main() {
 
     epui::Canvas indicator_canvas;
     menu.draw(indicator_canvas, 0);
-    menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
-    assert(menu.selection_style() == epui::MenuSelectionStyle::LiquidGlass);
-    epui::Canvas glass_canvas;
-    menu.draw(glass_canvas, 16);
-    assert(std::memcmp(indicator_canvas.data(), glass_canvas.data(), epui::Canvas::BufferSize) != 0);
+    menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
+    assert(menu.selection_style() == epui::MenuSelectionStyle::GlideFrame);
+    epui::Canvas glide_canvas;
+    menu.draw(glide_canvas, 16);
+    assert(std::memcmp(indicator_canvas.data(), glide_canvas.data(), epui::Canvas::BufferSize) != 0);
     menu.set_selection_style(epui::MenuSelectionStyle::Indicator);
 
     menu.on_key(epui::Key::Select);
@@ -100,6 +104,7 @@ int main() {
     menu.on_key(epui::Key::Select);
     assert(actions == 2);
 
+    // The original indicator keeps the damped-spring overshoot behavior.
     menu.reset_to_root(true);
     epui::Canvas canvas;
     menu.draw(canvas, 32);
@@ -112,12 +117,41 @@ int main() {
     assert(maximum > static_cast<float>(menu.style().row_height) + 0.5f);
     assert(!menu.jelly_active());
 
+    // GlideFrame follows the U8g2-style two-speed approach: 5 px while far,
+    // then 1 px near the target, with no overshoot.
     menu.reset_to_root(true);
-    menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
+    menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
     menu.draw(canvas, 688);
+    assert(menu.glide_position() == 0);
     menu.on_key(epui::Key::Next);
-    assert(menu.jelly_active());
-    for (std::uint32_t t = 704; t <= 1328; t += 16) menu.draw(canvas, t);
+    assert(menu.glide_target_position() == static_cast<int>(menu.style().row_height));
+    menu.draw(canvas, 704);
+    assert(menu.glide_position() == 5);
+    menu.draw(canvas, 720);
+    assert(menu.glide_position() == static_cast<int>(menu.style().row_height));
+    menu.draw(canvas, 736);
+    assert(menu.glide_position() == static_cast<int>(menu.style().row_height));
+
+    // Moving to an action item also demonstrates independent frame-width
+    // interpolation: rows with a right-side indicator use the full frame,
+    // while a plain action can shrink-wrap its text plus symmetric padding.
+    menu.reset_to_root(true);
+    menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
+    menu.draw(canvas, 752);
+    const int full_width = menu.glide_width();
+    menu.on_key(epui::Key::Next);
+    menu.on_key(epui::Key::Next);
+    menu.on_key(epui::Key::Next);
+    menu.draw(canvas, 768);
+    assert(menu.glide_target_width() < full_width);
+    int previous_width = menu.glide_width();
+    for (std::uint32_t t = 784; t <= 1200; t += 16) {
+        menu.draw(canvas, t);
+        assert(menu.glide_width() <= previous_width);
+        assert(menu.glide_width() >= menu.glide_target_width());
+        previous_width = menu.glide_width();
+    }
+    assert(menu.glide_width() == menu.glide_target_width());
     assert(!menu.jelly_active());
 
     menu.reset_to_root(true);
