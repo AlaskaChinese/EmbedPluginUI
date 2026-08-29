@@ -3,7 +3,7 @@
 namespace epui::demo {
 
 SimulatorUi::SimulatorUi()
-    : menu_(ui_, demo_menu_root(), "demo-menu"),
+    : menu_(ui_, demo_menu_root(), "demo-menu", demo_menu_style()),
       fps_debug_(ui_, "demo-fps") {
     ui_.add_page(home_);
     ui_.add_page(sensors_);
