@@ -165,6 +165,11 @@ struct MenuStyle {
     float glass_stretch_per_velocity{0.35f};
     float glass_motion_threshold{0.12f};
 
+    // When selection crosses a viewport edge, the list scrolls while the
+    // rounded frame stays anchored to the edge. This spring kick gives the
+    // anchored frame a visible push/rebound instead of making it look frozen.
+    float scroll_handoff_kick{2.0f};
+
     // One spring model is used by Indicator/LiquidGlass and by the visible
     // rounded-frame follower used by GlideFrame/SlideFrame.
     float spring_stiffness{0.22f};
@@ -206,6 +211,7 @@ public:
     bool editing() const { return editing_; }
     std::size_t depth() const { return depth_; }
     std::size_t selected_index() const { return current_frame().selected; }
+    std::size_t first_visible_index() const { return current_frame().first_visible; }
     const Menu& current_menu() const { return *current_frame().menu; }
     float selection_position() const { return selection_.position; }
     float scroll_position() const { return scroll_.position; }
@@ -219,14 +225,21 @@ public:
 
     // For Glide/Slide this is the visible spring that follows the deterministic
     // glide path. For Glass it is the existing selection-minus-scroll spring.
+    // Rounded frames also add the shared viewport-edge handoff spring.
     float frame_motion_position() const {
-        return is_glide_style() ? glide_frame_.position : selection_.position - scroll_.position;
+        const float base = is_glide_style()
+            ? glide_frame_.position : selection_.position - scroll_.position;
+        return base + (is_rounded_frame_style() ? edge_handoff_.position : 0.0f);
     }
     float frame_motion_target() const {
-        return is_glide_style() ? glide_frame_.target : selection_.target - scroll_.target;
+        const float base = is_glide_style()
+            ? glide_frame_.target : selection_.target - scroll_.target;
+        return base + (is_rounded_frame_style() ? edge_handoff_.target : 0.0f);
     }
     float frame_motion_velocity() const {
-        return is_glide_style() ? glide_frame_.velocity : selection_.velocity - scroll_.velocity;
+        const float base = is_glide_style()
+            ? glide_frame_.velocity : selection_.velocity - scroll_.velocity;
+        return base + (is_rounded_frame_style() ? edge_handoff_.velocity : 0.0f);
     }
     // Kept for source compatibility with the short-lived kick-spring API.
     // It reports the signed shared velocity-driven deformation amount.
@@ -292,9 +305,13 @@ public:
         Frame& frame = current_frame();
         if (!frame.menu || frame.menu->count == 0 || direction == 0) return false;
         const std::size_t count = frame.menu->count;
+        const std::size_t old_selected = frame.selected;
         if (direction > 0) frame.selected = (frame.selected + 1) % count;
         else frame.selected = (frame.selected + count - 1) % count;
-        sync_selection(false);
+
+        const bool wrapped = (direction > 0 && old_selected + 1 >= count)
+            || (direction < 0 && old_selected == 0);
+        sync_selection(false, wrapped ? 0 : direction);
         return true;
     }
 
@@ -352,8 +369,9 @@ public:
     bool jelly_active() const {
         const bool glide_jelly = is_glide_style()
             && (spring_active(glide_frame_) || glide_active());
+        const bool handoff_jelly = is_rounded_frame_style() && spring_active(edge_handoff_);
         return spring_active(selection_) || spring_active(scroll_) || spring_active(panel_)
-            || glide_jelly;
+            || glide_jelly || handoff_jelly;
     }
 
     void draw(Canvas& canvas, std::uint32_t now_ms) override {
@@ -366,6 +384,7 @@ private:
     struct Frame {
         const Menu* menu{nullptr};
         std::size_t selected{0};
+        std::size_t first_visible{0};
     };
 
     struct Spring {
@@ -420,6 +439,12 @@ private:
             || style_.selection_style == MenuSelectionStyle::SlideFrame;
     }
 
+    bool is_rounded_frame_style() const {
+        return style_.selection_style == MenuSelectionStyle::GlideFrame
+            || style_.selection_style == MenuSelectionStyle::SlideFrame
+            || style_.selection_style == MenuSelectionStyle::LiquidGlass;
+    }
+
     int frame_x() const { return static_cast<int>(style_.glass_x); }
 
     int frame_max_width() const {
@@ -438,12 +463,35 @@ private:
         return std::max(content_left_x(), edge);
     }
 
+    std::size_t visible_row_count() const {
+        return style_.visible_rows == 0 ? 1u : static_cast<std::size_t>(style_.visible_rows);
+    }
+
+    void update_viewport_for_selection(Frame& frame) {
+        if (!frame.menu || frame.menu->count == 0) {
+            frame.first_visible = 0;
+            return;
+        }
+
+        const std::size_t rows = visible_row_count();
+        const std::size_t max_first = frame.menu->count > rows
+            ? frame.menu->count - rows : 0u;
+        if (frame.first_visible > max_first) frame.first_visible = max_first;
+
+        // Keep the current viewport as long as the new selection is already
+        // visible. This is the key hysteresis: moving back up within the same
+        // window moves only the frame instead of dragging the whole list.
+        if (frame.selected < frame.first_visible) {
+            frame.first_visible = frame.selected;
+        } else if (frame.selected >= frame.first_visible + rows) {
+            frame.first_visible = frame.selected - rows + 1u;
+        }
+
+        if (frame.first_visible > max_first) frame.first_visible = max_first;
+    }
+
     int selected_scroll_target() const {
-        const Frame& frame = current_frame();
-        const std::size_t rows = style_.visible_rows == 0 ? 1 : style_.visible_rows;
-        std::size_t first = 0;
-        if (frame.selected >= rows) first = frame.selected - rows + 1;
-        return static_cast<int>(first * style_.row_height);
+        return static_cast<int>(current_frame().first_visible * style_.row_height);
     }
 
     int effective_scroll_position() const {
@@ -451,8 +499,12 @@ private:
         return round_to_int(scroll_.position);
     }
 
-    void sync_selection(bool snap) {
-        const Frame& frame = current_frame();
+    void sync_selection(bool snap, int direction = 0) {
+        Frame& frame = current_frame();
+        const std::size_t old_first_visible = frame.first_visible;
+        update_viewport_for_selection(frame);
+        const bool viewport_shifted = frame.first_visible != old_first_visible;
+
         const float selected = static_cast<float>(frame.selected * style_.row_height);
         const int glide_selected = static_cast<int>(frame.selected * style_.row_height);
         const int scroll_target = selected_scroll_target();
@@ -466,6 +518,7 @@ private:
             glide_scroll_position_ = scroll_target;
             glide_scroll_target_ = scroll_target;
             reset_spring(glide_frame_, static_cast<float>(glide_relative));
+            reset_spring(edge_handoff_, 0.0f);
             glide_accumulator_ms_ = 0;
         } else {
             selection_.target = selected;
@@ -475,6 +528,15 @@ private:
             // Do not jump glide_frame_.target to the final item. step_glide()
             // advances the virtual U8g2-style path and feeds each intermediate
             // relative position to the spring follower.
+
+            // At an edge handoff the final on-screen row can stay unchanged
+            // while the content scrolls underneath it. Give rounded frames a
+            // small spring impulse so the user's key press remains visible.
+            if (viewport_shifted && direction != 0 && is_rounded_frame_style()) {
+                edge_handoff_.target = 0.0f;
+                edge_handoff_.velocity += static_cast<float>(direction)
+                    * style_.scroll_handoff_kick;
+            }
         }
     }
 
@@ -565,6 +627,7 @@ private:
             step_spring(scroll_, dt);
             step_spring(panel_, dt);
             if (is_glide_style()) step_spring(glide_frame_, dt);
+            if (is_rounded_frame_style()) step_spring(edge_handoff_, dt);
             elapsed -= step_ms;
         }
     }
@@ -704,22 +767,28 @@ private:
 
     void draw_selection(Canvas& canvas, int panel_x) {
         if (is_glide_style()) {
+            const float visible_position = glide_frame_.position + edge_handoff_.position;
+            const float visible_velocity = glide_frame_.velocity + edge_handoff_.velocity;
             const int selection_y = static_cast<int>(style_.content_top)
-                + round_to_int(glide_frame_.position);
+                + round_to_int(visible_position);
             const int width = style_.selection_style == MenuSelectionStyle::SlideFrame
                 ? frame_max_width() : std::max(10, glide_width_);
             const bool moving = glide_active() || spring_active(glide_frame_)
-                || absf(glide_frame_.velocity) > style_.glass_motion_threshold;
+                || spring_active(edge_handoff_)
+                || absf(visible_velocity) > style_.glass_motion_threshold;
             draw_jelly_frame(canvas, panel_x, selection_y, width,
-                             glide_frame_.velocity, false, moving);
+                             visible_velocity, false, moving);
             return;
         }
 
+        const float base_position = selection_.position - scroll_.position;
+        const float base_velocity = selection_.velocity - scroll_.velocity;
         const int selection_y = round_to_int(static_cast<float>(style_.content_top)
-            + selection_.position - scroll_.position);
+            + base_position + (is_rounded_frame_style() ? edge_handoff_.position : 0.0f));
         if (style_.selection_style == MenuSelectionStyle::LiquidGlass) {
-            const float relative_velocity = selection_.velocity - scroll_.velocity;
+            const float relative_velocity = base_velocity + edge_handoff_.velocity;
             const bool moving = spring_active(selection_) || spring_active(scroll_)
+                || spring_active(edge_handoff_)
                 || absf(relative_velocity) > style_.glass_motion_threshold;
             draw_jelly_frame(canvas, panel_x, selection_y, frame_max_width(),
                              relative_velocity, true, moving);
@@ -750,6 +819,7 @@ private:
     Spring scroll_{};
     Spring panel_{};
     Spring glide_frame_{};
+    Spring edge_handoff_{};
     int glide_position_{0};
     int glide_position_target_{0};
     int glide_width_{0};
