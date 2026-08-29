@@ -32,13 +32,17 @@ Input plugins --------------------------------> Ui::handle()
 - 220 ms cubic ease-out transitions reuse the same framebuffer.
 - Hardware details stay outside pages and widgets.
 - New display controllers, transports, platforms and input devices enter through adapters/plugins.
+- Plugin dependencies are resolved deterministically before startup.
 
-## Public naming
+## Naming invariant
 
 - Project: `EmbedPluginUI`
 - CMake library: `epui`
-- Public headers: `epui/...`
-- Public namespace: `epui`
+- Public and implementation headers: `epui/...`
+- Namespace: `epui`
+- Platform sub-namespaces: `epui::rpi`, `epui::platform`, etc.
 - Build option/macro prefix: `EPUI_*`
+- Desktop simulator executable: `epui_sim`
+- Raspberry Pi executable: `epui_rpi`
 
-The historical `openoledui` implementation namespace is retained temporarily as the v0.1 compatibility layer.
+The source tree intentionally uses one naming system end to end. CI rejects reintroduction of retired project names or include paths.

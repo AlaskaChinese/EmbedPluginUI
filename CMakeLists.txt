@@ -13,7 +13,6 @@ add_library(epui
     src/plugin_registry.cpp
 )
 target_include_directories(epui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-add_library(openoledui ALIAS epui)
 
 option(EPUI_BUILD_WINDOWS_SIM "Build the Win32 OLED simulator" ON)
 option(EPUI_BUILD_LINUX_SIM "Build the Linux/X11 OLED simulator" ON)

@@ -20,11 +20,15 @@ The portable core owns rendering, navigation and animation. Platform-specific co
 - Smooth 220 ms cubic ease-out page transitions without a second framebuffer.
 - SSD1306 and SH1106 support.
 - Callback transport for MCU integrations.
+- Dependency-aware, fixed-capacity plugin runtime.
+- Typed sensors, services, event bus, themes, widgets and animations.
+- GPIO button and quadrature encoder input plugins.
+- STM32 HAL and ESP-IDF platform adapters.
 - Ubuntu 22.04 X11 simulator as the primary desktop development target.
 - Native Win32 simulator.
 - Raspberry Pi 5 dashboard for temperature, network, IP, user, uptime, disk, PMIC status and terminal output.
 
-## Public API naming
+## Naming
 
 - Project: `EmbedPluginUI`
 - Headers: `epui/...`
@@ -34,7 +38,7 @@ The portable core owns rendering, navigation and animation. Platform-specific co
 - Simulator: `epui_sim`
 - Raspberry Pi app: `epui_rpi`
 
-The historical `openoledui` implementation remains available as an internal compatibility layer during the v0.1 migration.
+The implementation and public API use the same `epui` namespace and include tree; there is no separate legacy implementation namespace.
 
 ## Ubuntu 22.04 development
 
@@ -44,9 +48,11 @@ sudo apt install -y build-essential cmake libx11-dev
 
 cmake -S . -B build
 cmake --build build -j
+ctest --test-dir build --output-on-failure
 ./build/epui_sim
 ```
 
+The simulator window title is `EmbedPluginUI - 128x64 Simulator`.
 Controls: Left/A = previous page, Right/D = next page, Enter/Space = select, Esc = back.
 
 ## Raspberry Pi 5

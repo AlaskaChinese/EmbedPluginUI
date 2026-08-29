@@ -5,7 +5,7 @@
 #include "system_monitor.hpp"
 #include "terminal_feed.hpp"
 
-namespace openoledui::rpi {
+namespace epui::rpi {
 
 class SystemMonitorPlugin final : public epui::SensorPlugin<StatusSnapshot> {
 public:
@@ -35,4 +35,4 @@ private:
     TerminalFeed feed_;
 };
 
-} // namespace openoledui::rpi
+} // namespace epui::rpi

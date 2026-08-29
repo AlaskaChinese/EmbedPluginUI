@@ -1,10 +1,13 @@
 #pragma once
-#include "openoledui/widgets.hpp"
+
+#include <cstdint>
+#include "epui/canvas.hpp"
+
 namespace epui {
-using openoledui::draw_header;
-using openoledui::draw_metric;
-using openoledui::draw_card;
-using openoledui::draw_wifi_icon;
-using openoledui::draw_thermometer;
-using openoledui::draw_spinner;
-}
+void draw_header(Canvas& c, const char* title, int page, int pages);
+void draw_metric(Canvas& c, int x, int y, const char* label, const char* value);
+void draw_card(Canvas& c, int x, int y, int w, int h, const char* title);
+void draw_wifi_icon(Canvas& c, int x, int y, int strength = 3);
+void draw_thermometer(Canvas& c, int x, int y, float normalized);
+void draw_spinner(Canvas& c, int cx, int cy, std::uint32_t now_ms);
+} // namespace epui

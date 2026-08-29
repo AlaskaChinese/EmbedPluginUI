@@ -1,10 +1,10 @@
-#include "openoledui/canvas.hpp"
+#include "epui/canvas.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 
-namespace openoledui {
+namespace epui {
 namespace {
 static const std::uint8_t kFont5x7[][5] = {
 {0,0,0,0,0},{0,0,0x5F,0,0},{0,7,0,7,0},{0x14,0x7F,0x14,0x7F,0x14},{0x24,0x2A,0x7F,0x2A,0x12},{0x23,0x13,8,0x64,0x62},{0x36,0x49,0x55,0x22,0x50},{0,5,3,0,0},{0,0x1C,0x22,0x41,0},{0,0x41,0x22,0x1C,0},{0x14,8,0x3E,8,0x14},{8,8,0x3E,8,8},{0,0x50,0x30,0,0},{8,8,8,8,8},{0,0x60,0x60,0,0},{0x20,0x10,8,4,2},
@@ -31,4 +31,4 @@ void Canvas::progress_bar(int x,int y,int w,int h,float value){value=std::max(0.
 void Canvas::glyph5x7(int x,int y,char c,bool on){if(c<0x20||c>0x7E)c='?';const auto& g=kFont5x7[static_cast<unsigned char>(c)-0x20];for(int col=0;col<5;++col)for(int row=0;row<7;++row)if(g[col]&(1u<<row))pixel(x+col,y+row,on);}
 void Canvas::text(int x,int y,const char* s,bool on,int spacing){if(!s)return;for(;*s;++s){glyph5x7(x,y,*s,on);x+=5+spacing;}}
 int Canvas::text_width(const char* s,int spacing)const{if(!s||!*s)return 0;int n=0;while(*s++)++n;return n*5+(n-1)*spacing;}
-} // namespace openoledui
+} // namespace epui

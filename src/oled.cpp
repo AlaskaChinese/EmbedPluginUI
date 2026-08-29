@@ -1,6 +1,6 @@
-#include "openoledui/oled.hpp"
+#include "epui/oled.hpp"
 
-namespace openoledui {
+namespace epui {
 Oled128x64::Oled128x64(OledTransport& transport, OledController controller, std::uint8_t contrast) : transport_(transport), controller_(controller), contrast_(contrast) {}
 bool Oled128x64::command(std::uint8_t value) { return transport_.write_command(&value, 1); }
 bool Oled128x64::commands(const std::uint8_t* data, std::size_t size) { return transport_.write_command(data, size); }
@@ -24,4 +24,4 @@ bool Oled128x64::present(const std::uint8_t* framebuffer, std::size_t size) {
 }
 bool Oled128x64::set_contrast(std::uint8_t contrast) { contrast_ = contrast; const std::uint8_t cmd[] = {0x81,contrast_}; return commands(cmd,sizeof(cmd)); }
 bool Oled128x64::power(bool on) { return command(on ? 0xAF : 0xAE); }
-} // namespace openoledui
+} // namespace epui
