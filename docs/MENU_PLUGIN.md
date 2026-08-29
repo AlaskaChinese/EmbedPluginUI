@@ -66,7 +66,7 @@ style.content_inset_right = 8;
 
 Equal insets produce equal visual breathing room on both sides. `text_x` and `right_margin` remain for source compatibility, but new projects should prefer `content_inset_left/right`.
 
-The rounded-frame resting height is now 11 pixels, one pixel taller above and below than the former 9-pixel frame. Vertical spacing remains application-defined:
+The rounded-frame resting height is 11 pixels. Vertical spacing remains application-defined:
 
 ```cpp
 style.glass_height = 11;
@@ -74,6 +74,8 @@ style.row_height = 13;
 ```
 
 The Ubuntu demo uses a 13-pixel row pitch so neighboring 11-pixel frames retain a clean 2-pixel gap.
+
+Rows near the physical bottom edge are no longer discarded by a conservative fixed margin. If a row begins inside the 128x64 framebuffer, it is rendered and `Canvas` clips any pixels that extend below the display. This means a fourth row at `y = 55` remains visible instead of disappearing entirely. The same intersection rule is used for selection frames, so partial bottom-edge frames can be shown while scrolling.
 
 ## Four selection animations
 
@@ -101,26 +103,43 @@ style.glide_scroll_slow_zone = 4;
 style.glide_tick_ms = 16;
 ```
 
-A lightweight jelly layer is rendered on top of that deterministic path. The frame body briefly lags behind the direction of travel, stretches vertically, narrows slightly and settles with a small spring overshoot. The actual GlideFrame position/scroll path remains non-overshooting.
-
-```cpp
-style.frame_jelly_kick = 2;
-style.frame_jelly_max_stretch = 2;
-style.frame_jelly_stiffness = 0.34f;
-style.frame_jelly_damping = 0.28f;
-```
+Its path remains deterministic and non-overshooting. The frame shape itself now uses exactly the same velocity-driven jelly model as `LiquidGlass`: relative vertical motion squeezes the frame horizontally and stretches it vertically. There is no separate Glide/Slide kick spring anymore.
 
 ### SlideFrame
 
-`SlideFrame` uses the same two-speed Y motion, smooth long-menu scrolling and jelly body deformation, but keeps a full-width rounded frame instead of fitting the selected content.
+`SlideFrame` uses the same two-speed Y motion and smooth long-menu scrolling as `GlideFrame`, but keeps a full-width rounded frame instead of fitting the selected content. Its jelly shape is calculated by the same shared velocity-to-stretch function used by `GlideFrame` and `LiquidGlass`.
 
 ```cpp
 menu.set_selection_style(epui::MenuSelectionStyle::SlideFrame);
 ```
 
+### Shared frame jelly
+
+The three rounded-frame styles share these deformation parameters:
+
+```cpp
+style.glass_max_stretch = 5;
+style.glass_stretch_per_velocity = 0.35f;
+style.glass_motion_threshold = 0.12f;
+```
+
+Conceptually:
+
+```text
+relative vertical velocity
+        -> stretch amount
+        -> horizontal squeeze
+        -> vertical stretch
+        -> return to the 11 px resting frame when velocity reaches zero
+```
+
+For `GlideFrame` and `SlideFrame`, velocity comes from the actual pixel-stepped frame motion relative to list scrolling. For `LiquidGlass`, it comes from the spring selection velocity relative to spring scrolling. The geometry formula is shared; only the motion source differs.
+
+The older `frame_jelly_*` fields remain in `MenuStyle` for source compatibility, but no longer drive a separate animation path.
+
 ### LiquidGlass
 
-`LiquidGlass` is again a distinct style. It restores the first-generation OLED glass cursor: spring-driven position, velocity-dependent squeeze/stretch and a moving inverse sheen.
+`LiquidGlass` remains the spring-driven style. It uses the shared frame jelly geometry plus its motion-only inverse sheen and edge highlight.
 
 ```cpp
 menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
@@ -130,7 +149,7 @@ style.glass_stretch_per_velocity = 0.35f;
 style.glass_motion_threshold = 0.12f;
 ```
 
-The important behavior is that the highlight is motion-only. Once the spring settles, LiquidGlass becomes a plain full-width rounded frame with no permanent sheen or highlight line. Its resting frame uses the same 11-pixel height as GlideFrame and SlideFrame.
+Once the spring settles, LiquidGlass becomes a plain full-width rounded frame with no permanent sheen or highlight line.
 
 ## Smooth scrolling beyond one page
 
@@ -143,7 +162,7 @@ style.glide_scroll_fast_step = 4;
 style.glide_scroll_slow_zone = 4;
 ```
 
-The Ubuntu simulator contains both a root menu longer than one page and a dedicated ten-item `Long Menu`.
+The Ubuntu simulator contains both a root menu longer than one page and a dedicated ten-item `Long Menu`. With the demo's 13-pixel row pitch, the fourth row intentionally sits near the bottom edge so partial/bottom-edge rendering can be inspected directly.
 
 ## Ubuntu demo
 

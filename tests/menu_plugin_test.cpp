@@ -18,6 +18,18 @@ bool pixel_on(const epui::Canvas& canvas, int x, int y) {
     return ((canvas.data()[index] >> (y & 7)) & 1u) != 0u;
 }
 
+int pixel_count_band(const epui::Canvas& canvas, int y0, int y1) {
+    int count = 0;
+    y0 = std::max(0, y0);
+    y1 = std::min(epui::Canvas::Height - 1, y1);
+    for (int y = y0; y <= y1; ++y) {
+        for (int x = 0; x < epui::Canvas::Width; ++x) {
+            if (pixel_on(canvas, x, y)) ++count;
+        }
+    }
+    return count;
+}
+
 const epui::MenuItem level4_items[] = {
     epui::MenuItem::action("Fire", action),
 };
@@ -93,8 +105,8 @@ int main() {
     assert(std::memcmp(indicator_canvas.data(), slide_canvas.data(), epui::Canvas::BufferSize) != 0);
     assert(menu.glide_target_width() == static_cast<int>(menu.style().glass_width));
 
-    // At rest LiquidGlass is intentionally just the same clean full-width
-    // rounded frame as SlideFrame: no sheen or highlight remains visible.
+    // At rest LiquidGlass is intentionally the same clean full-width rounded
+    // frame as SlideFrame: no sheen/highlight remains once motion is zero.
     menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
     epui::Canvas glass_rest_canvas;
     menu.draw(glass_rest_canvas, 48);
@@ -145,35 +157,36 @@ int main() {
     }
     assert(maximum > static_cast<float>(menu.style().row_height) + 0.5f);
 
-    // GlideFrame keeps deterministic two-speed Y motion, while the frame body
-    // receives a short elastic lag/overshoot on top of that path.
+    // GlideFrame keeps deterministic two-speed Y motion, but its geometric
+    // jelly now uses the same velocity->stretch formula as LiquidGlass.
     menu.reset_to_root(true);
     menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
     menu.draw(canvas, 720);
     assert(menu.glide_position() == 0);
     menu.on_key(epui::Key::Next);
     assert(menu.glide_target_position() == static_cast<int>(menu.style().row_height));
-    assert(std::fabs(menu.frame_jelly_offset()) > 1.0f);
     menu.draw(canvas, 736);
     assert(menu.glide_position() == 5);
-    assert(std::fabs(menu.frame_jelly_offset()) > 0.05f);
+    assert(std::fabs(menu.frame_motion_velocity()) > 0.5f);
+    const float expected_glide_jelly = menu.frame_motion_velocity() * menu.style().glass_stretch_per_velocity;
+    assert(std::fabs(menu.frame_jelly_offset() - expected_glide_jelly) < 0.001f);
     menu.draw(canvas, 752);
     assert(menu.glide_position() == static_cast<int>(menu.style().row_height));
-    for (std::uint32_t t = 768; t <= 1504; t += 16) menu.draw(canvas, t);
-    assert(std::fabs(menu.frame_jelly_offset()) < 0.1f);
+    for (std::uint32_t t = 768; t <= 944; t += 16) menu.draw(canvas, t);
+    assert(std::fabs(menu.frame_motion_velocity()) < 0.1f);
 
     // Width changes independently for GlideFrame.
     menu.reset_to_root(true);
     menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
-    menu.draw(canvas, 1520);
+    menu.draw(canvas, 960);
     const int full_width = menu.glide_width();
     menu.on_key(epui::Key::Next);
     menu.on_key(epui::Key::Next);
     menu.on_key(epui::Key::Next);
-    menu.draw(canvas, 1536);
+    menu.draw(canvas, 976);
     assert(menu.glide_target_width() < full_width);
     int previous_width = menu.glide_width();
-    for (std::uint32_t t = 1552; t <= 1984; t += 16) {
+    for (std::uint32_t t = 992; t <= 1424; t += 16) {
         menu.draw(canvas, t);
         assert(menu.glide_width() <= previous_width);
         assert(menu.glide_width() >= menu.glide_target_width());
@@ -181,29 +194,29 @@ int main() {
     }
     assert(menu.glide_width() == menu.glide_target_width());
 
-    // SlideFrame uses the same jelly kick but remains full width.
+    // SlideFrame uses the same velocity-driven jelly geometry but remains full width.
     menu.reset_to_root(true);
     menu.set_selection_style(epui::MenuSelectionStyle::SlideFrame);
-    menu.draw(canvas, 2000);
+    menu.draw(canvas, 1440);
     menu.on_key(epui::Key::Next);
-    assert(std::fabs(menu.frame_jelly_offset()) > 1.0f);
-    menu.draw(canvas, 2016);
+    menu.draw(canvas, 1456);
+    assert(std::fabs(menu.frame_motion_velocity()) > 0.5f);
     assert(menu.glide_target_width() == static_cast<int>(menu.style().glass_width));
 
-    // LiquidGlass restores the first-generation spring/stretch/highlight. The
-    // moving frame must differ from the no-highlight resting frame.
+    // LiquidGlass uses the same jelly geometry plus a motion-only sheen.
     menu.reset_to_root(true);
     menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
     epui::Canvas liquid_rest;
-    menu.draw(liquid_rest, 2032);
+    menu.draw(liquid_rest, 1472);
     menu.on_key(epui::Key::Next);
     epui::Canvas liquid_moving;
-    menu.draw(liquid_moving, 2048);
+    menu.draw(liquid_moving, 1488);
+    assert(std::fabs(menu.frame_motion_velocity()) > 0.05f);
     assert(std::memcmp(liquid_rest.data(), liquid_moving.data(), epui::Canvas::BufferSize) != 0);
-    for (std::uint32_t t = 2064; t <= 2800; t += 16) menu.draw(liquid_moving, t);
+    for (std::uint32_t t = 1504; t <= 2240; t += 16) menu.draw(liquid_moving, t);
     epui::Canvas liquid_settled;
     liquid_settled.clear();
-    menu.draw(liquid_settled, 2816);
+    menu.draw(liquid_settled, 2256);
     assert(!menu.jelly_active());
 
     // Choice is a reusable enum-style menu item.
@@ -218,6 +231,21 @@ int main() {
     assert(choice_page.activate_selected());
     assert(choice_index == 0);
     choice_page.stop();
+
+    // A fourth row at y=55 on a 64 px display is still drawable. The old
+    // y > Height-10 cutoff incorrectly hid it; now the Canvas is allowed to
+    // render every pixel that still intersects the physical screen.
+    epui::MenuStyle partial_style{};
+    partial_style.selection_style = epui::MenuSelectionStyle::SlideFrame;
+    partial_style.visible_rows = 4;
+    partial_style.row_height = 13;
+    epui::Ui partial_ui;
+    epui::MenuPagePlugin<4> partial_page(partial_ui, long_menu, "partial-menu", partial_style);
+    assert(partial_page.start());
+    epui::Canvas partial_canvas;
+    partial_page.draw(partial_canvas, 0);
+    assert(pixel_count_band(partial_canvas, 55, 63) > 0);
+    partial_page.stop();
 
     // A menu longer than the viewport must scroll gradually instead of jumping.
     epui::MenuStyle long_style{};
