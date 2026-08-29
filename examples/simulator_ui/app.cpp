@@ -7,10 +7,12 @@ SimulatorUi::SimulatorUi()
     ui_.add_page(home_);
     ui_.add_page(sensors_);
     ui_.add_page(about_);
+    bind_demo_menu(&menu_);
     menu_.start();
 }
 
 SimulatorUi::~SimulatorUi() {
+    bind_demo_menu(nullptr);
     menu_.stop();
 }
 

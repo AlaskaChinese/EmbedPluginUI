@@ -86,6 +86,11 @@ constexpr Menu make_menu(const char* title, const MenuItem (&items)[N]) {
     return {title, items, N};
 }
 
+enum class MenuSelectionStyle : std::uint8_t {
+    Indicator,
+    LiquidGlass,
+};
+
 struct MenuStyle {
     std::uint8_t content_top{16};
     std::uint8_t row_height{10};
@@ -95,6 +100,14 @@ struct MenuStyle {
     std::uint8_t indicator_x{3};
     std::uint8_t indicator_width{4};
     std::uint8_t indicator_height{7};
+    MenuSelectionStyle selection_style{MenuSelectionStyle::Indicator};
+    std::uint8_t glass_x{3};
+    std::uint8_t glass_width{122};
+    std::uint8_t glass_height{9};
+    std::uint8_t glass_radius{4};
+    std::uint8_t glass_sheen_height{2};
+    std::uint8_t glass_max_stretch{5};
+    float glass_stretch_per_velocity{0.35f};
     float spring_stiffness{0.22f};
     float spring_damping{0.35f};
     std::uint16_t max_frame_ms{48};
@@ -138,11 +151,16 @@ public:
     float selection_position() const { return selection_.position; }
     float scroll_position() const { return scroll_.position; }
     float panel_position() const { return panel_.position; }
+    MenuSelectionStyle selection_style() const { return style_.selection_style; }
     const MenuStyle& style() const { return style_; }
 
     void set_style(const MenuStyle& style) {
         style_ = style;
         sync_selection(true);
+    }
+
+    void set_selection_style(MenuSelectionStyle style) {
+        style_.selection_style = style;
     }
 
     void focus() { focused_ = true; }
@@ -351,14 +369,6 @@ private:
             return;
         }
 
-        const int indicator_y = round_to_int(static_cast<float>(style_.content_top) + selection_.position - scroll_.position);
-        if (indicator_y >= 13 && indicator_y <= Canvas::Height - 9) {
-            if (focused_) canvas.fill_round_rect(panel_x + style_.indicator_x, indicator_y,
-                                                 style_.indicator_width, style_.indicator_height, 2, true);
-            else canvas.round_rect(panel_x + style_.indicator_x, indicator_y,
-                                   style_.indicator_width, style_.indicator_height, 2, true);
-        }
-
         for (std::size_t i = 0; i < menu.count; ++i) {
             const float y_float = static_cast<float>(style_.content_top + i * style_.row_height) - scroll_.position;
             const int y = round_to_int(y_float);
@@ -366,6 +376,52 @@ private:
             const MenuItem& item = menu.items[i];
             canvas.text(panel_x + style_.text_x, y, item.label ? item.label : "?");
             draw_item_value(canvas, item, y, i == frame.selected, panel_x);
+        }
+
+        const int selection_y = round_to_int(static_cast<float>(style_.content_top) + selection_.position - scroll_.position);
+        draw_selection(canvas, panel_x, selection_y);
+    }
+
+    void draw_selection(Canvas& canvas, int panel_x, int selection_y) {
+        if (selection_y < 13 || selection_y > Canvas::Height - 9) return;
+        if (style_.selection_style == MenuSelectionStyle::LiquidGlass) {
+            draw_liquid_glass_selection(canvas, panel_x, selection_y);
+            return;
+        }
+        if (focused_) {
+            canvas.fill_round_rect(panel_x + style_.indicator_x, selection_y,
+                                   style_.indicator_width, style_.indicator_height, 2, true);
+        } else {
+            canvas.round_rect(panel_x + style_.indicator_x, selection_y,
+                              style_.indicator_width, style_.indicator_height, 2, true);
+        }
+    }
+
+    void draw_liquid_glass_selection(Canvas& canvas, int panel_x, int selection_y) {
+        const float relative_velocity = selection_.velocity - scroll_.velocity;
+        int stretch = round_to_int(absf(relative_velocity) * style_.glass_stretch_per_velocity);
+        stretch = std::max(0, std::min(stretch, static_cast<int>(style_.glass_max_stretch)));
+
+        const int base_x = static_cast<int>(style_.glass_x);
+        const int max_width = std::max(10, Canvas::Width - base_x - 2);
+        int width = static_cast<int>(style_.glass_width) - stretch * 2;
+        width = std::max(10, std::min(width, max_width));
+        const int x = panel_x + base_x + stretch;
+        const int height = static_cast<int>(style_.glass_height) + stretch;
+        const int y = selection_y - 1 - stretch / 2;
+        const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
+
+        if (focused_ && style_.glass_sheen_height > 0 && absf(relative_velocity) > 0.12f) {
+            const int sheen_height = std::min(static_cast<int>(style_.glass_sheen_height), std::max(1, height - 4));
+            const int sheen_y = relative_velocity >= 0.0f
+                ? y + height - sheen_height - 2
+                : y + 2;
+            canvas.invert_rect(x + 2, sheen_y, std::max(1, width - 4), sheen_height);
+        }
+
+        canvas.round_rect(x, y, width, height, radius, true);
+        if (focused_ && width > radius * 2 + 4) {
+            canvas.line(x + radius + 2, y + 1, x + width - radius - 3, y + 1, true);
         }
     }
 
