@@ -89,7 +89,7 @@ menu.set_selection_style(epui::MenuSelectionStyle::Indicator);
 
 ### GlideFrame
 
-`GlideFrame` follows the classic small-U8g2-menu approach: integer frame Y, frame width and long-menu scroll states move quickly while far from their targets, then approach one pixel at a time near the target.
+`GlideFrame` keeps the classic small-U8g2 two-speed path, but that path is now only a **virtual target**:
 
 ```cpp
 style.selection_style = epui::MenuSelectionStyle::GlideFrame;
@@ -103,19 +103,40 @@ style.glide_scroll_slow_zone = 4;
 style.glide_tick_ms = 16;
 ```
 
-Its path remains deterministic and non-overshooting. The frame shape itself now uses exactly the same velocity-driven jelly model as `LiquidGlass`: relative vertical motion squeezes the frame horizontally and stretches it vertically. There is no separate Glide/Slide kick spring anymore.
+The visible frame no longer sits directly on `glide_position - glide_scroll`. Instead, a damped spring follows every intermediate relative position produced by that deterministic path:
+
+```text
+selected item
+   -> two-speed glide target
+   -> frame spring target
+   -> visible frame position
+   -> overshoot
+   -> rebound
+   -> settle
+```
+
+This preserves the clean U8g2 timing while giving the cursor the same physical spring character as `LiquidGlass`.
 
 ### SlideFrame
 
-`SlideFrame` uses the same two-speed Y motion and smooth long-menu scrolling as `GlideFrame`, but keeps a full-width rounded frame instead of fitting the selected content. Its jelly shape is calculated by the same shared velocity-to-stretch function used by `GlideFrame` and `LiquidGlass`.
+`SlideFrame` uses the same two-speed virtual target and the same visible spring follower as `GlideFrame`, but keeps a full-width rounded frame instead of fitting the selected content.
 
 ```cpp
 menu.set_selection_style(epui::MenuSelectionStyle::SlideFrame);
 ```
 
-### Shared frame jelly
+Both `GlideFrame` and `SlideFrame` therefore have real position overshoot/rebound now, not only velocity-driven geometric deformation.
 
-The three rounded-frame styles share these deformation parameters:
+### Shared rounded-frame spring and jelly
+
+`GlideFrame`, `SlideFrame` and `LiquidGlass` use the same spring constants for visible motion:
+
+```cpp
+style.spring_stiffness = 0.22f;
+style.spring_damping = 0.35f;
+```
+
+They also share the same velocity-driven frame deformation:
 
 ```cpp
 style.glass_max_stretch = 5;
@@ -126,20 +147,19 @@ style.glass_motion_threshold = 0.12f;
 Conceptually:
 
 ```text
-relative vertical velocity
+visible spring velocity
         -> stretch amount
         -> horizontal squeeze
         -> vertical stretch
-        -> return to the 11 px resting frame when velocity reaches zero
 ```
 
-For `GlideFrame` and `SlideFrame`, velocity comes from the actual pixel-stepped frame motion relative to list scrolling. For `LiquidGlass`, it comes from the spring selection velocity relative to spring scrolling. The geometry formula is shared; only the motion source differs.
+For Glide/Slide, the spring follows the deterministic glide target. For Glass, the selection/scroll position is itself spring-driven. The resulting visible frame velocity goes through the same deformation formula in all three styles.
 
-The older `frame_jelly_*` fields remain in `MenuStyle` for source compatibility, but no longer drive a separate animation path.
+The older `frame_jelly_*` fields remain in `MenuStyle` for source compatibility but no longer drive a separate animation path.
 
 ### LiquidGlass
 
-`LiquidGlass` remains the spring-driven style. It uses the shared frame jelly geometry plus its motion-only inverse sheen and edge highlight.
+`LiquidGlass` keeps its direct spring-driven selection motion and adds the motion-only inverse sheen and edge highlight:
 
 ```cpp
 menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
@@ -153,7 +173,7 @@ Once the spring settles, LiquidGlass becomes a plain full-width rounded frame wi
 
 ## Smooth scrolling beyond one page
 
-A menu can contain more items than `visible_rows`. GlideFrame and SlideFrame animate the list scroll offset with the same two-speed logic instead of jumping one row at a time. Indicator and LiquidGlass use their spring scroll path.
+A menu can contain more items than `visible_rows`. GlideFrame and SlideFrame keep the two-speed list scroll path, while the visible selection frame springs around the **relative** item-minus-scroll target. The list therefore stays predictable while the cursor still rebounds naturally. Indicator and LiquidGlass use their spring scroll path.
 
 ```cpp
 style.visible_rows = 4;
@@ -172,4 +192,4 @@ The simulator exposes all four styles under:
 Jelly Menu -> Display -> Theme -> Cursor
 ```
 
-Press `Select` on `Cursor` to cycle through `Indicator`, `Glide`, `Slide` and `Glass`. The demo defaults to `Glide`.
+Press `Select` on `Cursor` to cycle through `Indicator`, `Glide`, `Slide` and `Glass`. The demo defaults to `Glide`, so the new spring-follow behavior is visible immediately.

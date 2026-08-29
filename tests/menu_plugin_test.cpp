@@ -157,36 +157,47 @@ int main() {
     }
     assert(maximum > static_cast<float>(menu.style().row_height) + 0.5f);
 
-    // GlideFrame keeps deterministic two-speed Y motion, but its geometric
-    // jelly now uses the same velocity->stretch formula as LiquidGlass.
+    // GlideFrame keeps the deterministic two-speed path as its virtual target,
+    // but the visible frame now follows that path through the same damped
+    // spring as Glass. It must visibly overshoot and then settle.
     menu.reset_to_root(true);
     menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
     menu.draw(canvas, 720);
     assert(menu.glide_position() == 0);
+    assert(std::fabs(menu.frame_motion_position()) < 0.01f);
     menu.on_key(epui::Key::Next);
     assert(menu.glide_target_position() == static_cast<int>(menu.style().row_height));
     menu.draw(canvas, 736);
     assert(menu.glide_position() == 5);
-    assert(std::fabs(menu.frame_motion_velocity()) > 0.5f);
-    const float expected_glide_jelly = menu.frame_motion_velocity() * menu.style().glass_stretch_per_velocity;
-    assert(std::fabs(menu.frame_jelly_offset() - expected_glide_jelly) < 0.001f);
+    assert(menu.frame_motion_target() == 5.0f);
+    assert(menu.frame_motion_position() > 0.0f);
+    assert(menu.frame_motion_position() < menu.frame_motion_target());
     menu.draw(canvas, 752);
     assert(menu.glide_position() == static_cast<int>(menu.style().row_height));
-    for (std::uint32_t t = 768; t <= 944; t += 16) menu.draw(canvas, t);
+    assert(menu.frame_motion_target() == static_cast<float>(menu.style().row_height));
+
+    float glide_maximum = menu.frame_motion_position();
+    for (std::uint32_t t = 768; t <= 1360; t += 16) {
+        menu.draw(canvas, t);
+        glide_maximum = std::max(glide_maximum, menu.frame_motion_position());
+    }
+    assert(glide_maximum > static_cast<float>(menu.style().row_height) + 0.5f);
+    assert(std::fabs(menu.frame_motion_position() - static_cast<float>(menu.style().row_height)) < 0.1f);
     assert(std::fabs(menu.frame_motion_velocity()) < 0.1f);
 
-    // Width changes independently for GlideFrame.
+    // Width still changes independently for GlideFrame while the position uses
+    // the spring follower.
     menu.reset_to_root(true);
     menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
-    menu.draw(canvas, 960);
+    menu.draw(canvas, 1376);
     const int full_width = menu.glide_width();
     menu.on_key(epui::Key::Next);
     menu.on_key(epui::Key::Next);
     menu.on_key(epui::Key::Next);
-    menu.draw(canvas, 976);
+    menu.draw(canvas, 1392);
     assert(menu.glide_target_width() < full_width);
     int previous_width = menu.glide_width();
-    for (std::uint32_t t = 992; t <= 1424; t += 16) {
+    for (std::uint32_t t = 1408; t <= 1840; t += 16) {
         menu.draw(canvas, t);
         assert(menu.glide_width() <= previous_width);
         assert(menu.glide_width() >= menu.glide_target_width());
@@ -194,29 +205,36 @@ int main() {
     }
     assert(menu.glide_width() == menu.glide_target_width());
 
-    // SlideFrame uses the same velocity-driven jelly geometry but remains full width.
+    // SlideFrame uses the same virtual path + same visible spring as GlideFrame,
+    // but remains full width. It must independently demonstrate overshoot.
     menu.reset_to_root(true);
     menu.set_selection_style(epui::MenuSelectionStyle::SlideFrame);
-    menu.draw(canvas, 1440);
+    menu.draw(canvas, 1856);
     menu.on_key(epui::Key::Next);
-    menu.draw(canvas, 1456);
-    assert(std::fabs(menu.frame_motion_velocity()) > 0.5f);
+    float slide_maximum = menu.frame_motion_position();
+    for (std::uint32_t t = 1872; t <= 2464; t += 16) {
+        menu.draw(canvas, t);
+        slide_maximum = std::max(slide_maximum, menu.frame_motion_position());
+    }
+    assert(slide_maximum > static_cast<float>(menu.style().row_height) + 0.5f);
+    assert(std::fabs(menu.frame_motion_position() - static_cast<float>(menu.style().row_height)) < 0.1f);
+    assert(std::fabs(menu.frame_motion_velocity()) < 0.1f);
     assert(menu.glide_target_width() == static_cast<int>(menu.style().glass_width));
 
-    // LiquidGlass uses the same jelly geometry plus a motion-only sheen.
+    // LiquidGlass retains the same spring character plus a motion-only sheen.
     menu.reset_to_root(true);
     menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
     epui::Canvas liquid_rest;
-    menu.draw(liquid_rest, 1472);
+    menu.draw(liquid_rest, 2480);
     menu.on_key(epui::Key::Next);
     epui::Canvas liquid_moving;
-    menu.draw(liquid_moving, 1488);
+    menu.draw(liquid_moving, 2496);
     assert(std::fabs(menu.frame_motion_velocity()) > 0.05f);
     assert(std::memcmp(liquid_rest.data(), liquid_moving.data(), epui::Canvas::BufferSize) != 0);
-    for (std::uint32_t t = 1504; t <= 2240; t += 16) menu.draw(liquid_moving, t);
+    for (std::uint32_t t = 2512; t <= 3248; t += 16) menu.draw(liquid_moving, t);
     epui::Canvas liquid_settled;
     liquid_settled.clear();
-    menu.draw(liquid_settled, 2256);
+    menu.draw(liquid_settled, 3264);
     assert(!menu.jelly_active());
 
     // Choice is a reusable enum-style menu item.
@@ -232,9 +250,8 @@ int main() {
     assert(choice_index == 0);
     choice_page.stop();
 
-    // A fourth row at y=55 on a 64 px display is still drawable. The old
-    // y > Height-10 cutoff incorrectly hid it; now the Canvas is allowed to
-    // render every pixel that still intersects the physical screen.
+    // A fourth row at y=55 on a 64 px display is still drawable. The Canvas
+    // clips only the pixels beyond the physical edge instead of hiding the row.
     epui::MenuStyle partial_style{};
     partial_style.selection_style = epui::MenuSelectionStyle::SlideFrame;
     partial_style.visible_rows = 4;
@@ -248,6 +265,8 @@ int main() {
     partial_page.stop();
 
     // A menu longer than the viewport must scroll gradually instead of jumping.
+    // The visible frame may spring around the virtual relative target, while the
+    // list itself preserves the deterministic 4/4/1/1 scroll sequence.
     epui::MenuStyle long_style{};
     long_style.selection_style = epui::MenuSelectionStyle::GlideFrame;
     long_style.visible_rows = 4;
