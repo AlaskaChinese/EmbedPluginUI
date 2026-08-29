@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include "epui/plugin.hpp"
 
 namespace epui {
@@ -15,6 +16,7 @@ public:
     Plugin* at(std::size_t index) const;
     std::size_t size() const { return count_; }
     bool start_all();
+    void tick_all(std::uint32_t now_ms);
     void stop_all();
     bool started() const { return started_count_ == count_ && count_ != 0; }
 
