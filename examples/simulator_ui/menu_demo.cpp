@@ -10,7 +10,7 @@ bool fps_overlay = true;
 bool sleep_enabled = true;
 bool invert_enabled = false;
 bool soft_theme = true;
-bool glass_cursor = false;
+bool glide_cursor = false;
 int wifi_channel = 6;
 int log_level = 2;
 int brightness = 72;
@@ -22,8 +22,8 @@ FpsDebugPlugin* bound_fps = nullptr;
 
 void apply_cursor_style(void*) {
     if (!bound_menu) return;
-    bound_menu->set_selection_style(glass_cursor
-        ? MenuSelectionStyle::LiquidGlass
+    bound_menu->set_selection_style(glide_cursor
+        ? MenuSelectionStyle::GlideFrame
         : MenuSelectionStyle::Indicator);
 }
 
@@ -87,7 +87,7 @@ const Menu oled_menu = make_menu("OLED", oled_items);
 const MenuItem theme_items[] = {
     MenuItem::toggle("Soft", soft_theme),
     MenuItem::value("Radius", radius, 0, 8),
-    MenuItem::toggle("Liquid Cursor", glass_cursor, apply_cursor_style),
+    MenuItem::toggle("Glide Cursor", glide_cursor, apply_cursor_style),
 };
 const Menu theme_menu = make_menu("Theme", theme_items);
 
@@ -114,24 +114,24 @@ const Menu& demo_menu_root() {
 MenuStyle demo_menu_style() {
     MenuStyle style{};
 
-    // Demo choice, not a framework requirement: a 12 px row pitch leaves a
-    // visible 3 px gap around the 9 px capsule, which gives the metaball neck
-    // enough room to form between adjacent menu rows.
-    style.row_height = 12;
+    // Demo choice only. Without metaballs there is no need for the previous
+    // 12 px spacing; 11 px keeps the 9 px frame compact with a 2 px gap.
+    style.row_height = 11;
     style.visible_rows = 4;
 
-    // Keep the text and right-side value/arrow equally inset from the resting
-    // capsule border. Applications can tune these independently.
+    // Symmetric padding between the frame and label/right-side indicator.
     style.content_inset_left = 8;
     style.content_inset_right = 8;
 
-    style.liquid_metaball_radius = 3;
-    style.liquid_bridge_width = 1;
-    style.liquid_bridge_max_span = 16;
-    style.liquid_refraction_radius = 4;
-    style.liquid_highlight_min = 5;
-    style.liquid_highlight_max = 14;
-    style.liquid_dither_trail = false;
+    // Motion parameters intentionally mirror the small U8g2 ui_run example:
+    // Y moves 5 px while far / 1 px near the target, width 10 px / 1 px.
+    style.glide_fit_content = true;
+    style.glide_min_width = 28;
+    style.glide_position_fast_step = 5;
+    style.glide_position_slow_zone = 4;
+    style.glide_width_fast_step = 10;
+    style.glide_width_slow_zone = 5;
+    style.glide_tick_ms = 16;
     return style;
 }
 
@@ -153,7 +153,7 @@ void reset_demo_menu_state() {
     sleep_enabled = true;
     invert_enabled = false;
     soft_theme = true;
-    glass_cursor = false;
+    glide_cursor = false;
     wifi_channel = 6;
     log_level = 2;
     brightness = 72;
