@@ -10,6 +10,7 @@ add_library(epui
     src/page.cpp
     src/oled.cpp
     src/widgets.cpp
+    src/plugin_registry.cpp
 )
 target_include_directories(epui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_library(openoledui ALIAS epui)
@@ -17,6 +18,7 @@ add_library(openoledui ALIAS epui)
 option(EPUI_BUILD_WINDOWS_SIM "Build the Win32 OLED simulator" ON)
 option(EPUI_BUILD_LINUX_SIM "Build the Linux/X11 OLED simulator" ON)
 option(EPUI_BUILD_RPI "Build the Raspberry Pi 5 application" OFF)
+option(EPUI_BUILD_TESTS "Build EmbedPluginUI tests" ON)
 
 if(WIN32 AND EPUI_BUILD_WINDOWS_SIM)
     add_executable(epui_sim WIN32 ports/windows/simulator.cpp)
@@ -45,4 +47,11 @@ if(UNIX AND NOT APPLE AND EPUI_BUILD_RPI)
     )
     target_link_libraries(epui_rpi PRIVATE epui)
     target_include_directories(epui_rpi PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ports/raspberry_pi)
+endif()
+
+if(EPUI_BUILD_TESTS)
+    enable_testing()
+    add_executable(epui_plugin_registry_test tests/plugin_registry_test.cpp)
+    target_link_libraries(epui_plugin_registry_test PRIVATE epui)
+    add_test(NAME epui_plugin_registry COMMAND epui_plugin_registry_test)
 endif()
