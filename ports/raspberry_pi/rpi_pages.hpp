@@ -3,7 +3,7 @@
 #include "epui/page_plugin.hpp"
 #include "rpi_plugins.hpp"
 
-namespace openoledui::rpi {
+namespace epui::rpi {
 
 class OverviewPage final : public epui::PagePlugin {
 public:
@@ -55,4 +55,4 @@ private:
     const TerminalFeedPlugin& terminal_;
 };
 
-} // namespace openoledui::rpi
+} // namespace epui::rpi

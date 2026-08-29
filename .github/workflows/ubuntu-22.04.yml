@@ -10,6 +10,20 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - name: Enforce EmbedPluginUI naming
+        shell: bash
+        run: |
+          set -euo pipefail
+          legacy_ui="open""oledui"
+          legacy_mono="open""monoui"
+          if git ls-files | grep -iE "${legacy_ui}|${legacy_mono}"; then
+            echo "Legacy project naming found in tracked paths."
+            exit 1
+          fi
+          if git grep -niE "${legacy_ui}|${legacy_mono}" -- .; then
+            echo "Legacy project naming found in tracked file contents."
+            exit 1
+          fi
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential cmake libx11-dev
       - name: Build core and Linux simulator

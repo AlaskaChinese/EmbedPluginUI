@@ -1,8 +1,8 @@
 #include "rpi_pages.hpp"
-#include "openoledui/widgets.hpp"
+#include "epui/widgets.hpp"
 #include <cstdio>
 
-namespace openoledui::rpi {
+namespace epui::rpi {
 namespace {
 void fmt(char* b, std::size_t n, float v, const char* suffix, int decimals = 0) {
     if (v < 0) std::snprintf(b, n, "N/A");
@@ -17,7 +17,7 @@ void kv(epui::Canvas& c, int y, const char* key, const char* value) {
 
 void OverviewPage::draw(epui::Canvas& c, std::uint32_t) {
     const auto& s = system_.snapshot();
-    openoledui::draw_header(c, "Pi 5", 1, 5);
+    epui::draw_header(c, "Pi 5", 1, 5);
     char b[24];
     fmt(b, sizeof(b), s.temperature_c, "C", 1); kv(c, 17, "TEMP", b);
     fmt(b, sizeof(b), s.cpu_percent, "%"); kv(c, 27, "CPU", b);
@@ -27,8 +27,8 @@ void OverviewPage::draw(epui::Canvas& c, std::uint32_t) {
 
 void NetworkPage::draw(epui::Canvas& c, std::uint32_t) {
     const auto& s = system_.snapshot();
-    openoledui::draw_header(c, "Network", 2, 5);
-    openoledui::draw_wifi_icon(c, 107, 18, 3);
+    epui::draw_header(c, "Network", 2, 5);
+    epui::draw_wifi_icon(c, 107, 18, 3);
     kv(c, 17, "IF", s.interface.c_str());
     kv(c, 27, "IP", s.ipv4.c_str());
     char b[24];
@@ -38,18 +38,18 @@ void NetworkPage::draw(epui::Canvas& c, std::uint32_t) {
 
 void PowerPage::draw(epui::Canvas& c, std::uint32_t now) {
     const auto& s = system_.snapshot();
-    openoledui::draw_header(c, "Power", 3, 5);
+    epui::draw_header(c, "Power", 3, 5);
     char b[24];
     fmt(b, sizeof(b), s.supply_voltage_v, "V", 2); kv(c, 18, "EXT5V", b);
     fmt(b, sizeof(b), s.core_current_a, "A", 2); kv(c, 29, "CORE I", b);
     std::snprintf(b, sizeof(b), "0x%05X", s.throttled); kv(c, 40, "FLAGS", b);
     c.text(3, 51, s.throttled ? "CHECK POWER/THERM" : "POWER OK");
-    if (s.throttled) openoledui::draw_spinner(c, 119, 52, now);
+    if (s.throttled) epui::draw_spinner(c, 119, 52, now);
 }
 
 void SystemPage::draw(epui::Canvas& c, std::uint32_t) {
     const auto& s = system_.snapshot();
-    openoledui::draw_header(c, "System", 4, 5);
+    epui::draw_header(c, "System", 4, 5);
     kv(c, 16, "USER", s.user.c_str());
     kv(c, 25, "HOST", s.hostname.c_str());
     char b[24];
@@ -59,7 +59,7 @@ void SystemPage::draw(epui::Canvas& c, std::uint32_t) {
 }
 
 void TerminalPage::draw(epui::Canvas& c, std::uint32_t) {
-    openoledui::draw_header(c, "Terminal", 5, 5);
+    epui::draw_header(c, "Terminal", 5, 5);
     int y = 15;
     for (const auto& line : terminal_.feed().lines()) {
         c.text(3, y, line.c_str());
@@ -67,4 +67,4 @@ void TerminalPage::draw(epui::Canvas& c, std::uint32_t) {
     }
 }
 
-} // namespace openoledui::rpi
+} // namespace epui::rpi

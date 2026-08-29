@@ -6,7 +6,8 @@
 #include <sys/ioctl.h>
 #include <thread>
 #include <unistd.h>
-namespace openoledui::rpi {
+#include <utility>
+namespace epui::rpi {
 LinuxI2cTransport::LinuxI2cTransport(std::string device,std::uint8_t address):device_(std::move(device)),address_(address){}
 LinuxI2cTransport::~LinuxI2cTransport(){if(fd_>=0)::close(fd_);}bool LinuxI2cTransport::open_bus(){fd_=::open(device_.c_str(),O_RDWR);if(fd_<0)return false;if(::ioctl(fd_,I2C_SLAVE,address_)<0){::close(fd_);fd_=-1;return false;}return true;}
 bool LinuxI2cTransport::write_prefixed(std::uint8_t control,const std::uint8_t* data,std::size_t size){if(fd_<0||(!data&&size))return false;std::uint8_t packet[129];while(size>0){const std::size_t chunk=std::min<std::size_t>(size,128);packet[0]=control;for(std::size_t i=0;i<chunk;++i)packet[i+1]=data[i];if(::write(fd_,packet,chunk+1)!=static_cast<ssize_t>(chunk+1))return false;data+=chunk;size-=chunk;}return true;}

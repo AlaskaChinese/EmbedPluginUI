@@ -17,7 +17,7 @@
 #include <unistd.h>
 
 using namespace epui;
-using namespace openoledui::rpi;
+using namespace epui::rpi;
 
 namespace {
 std::uint32_t now_ms(){return static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());}
