@@ -101,13 +101,27 @@ struct MenuStyle {
     std::uint8_t indicator_width{4};
     std::uint8_t indicator_height{7};
     MenuSelectionStyle selection_style{MenuSelectionStyle::Indicator};
+
+    // OLED-native liquid capsule geometry. The legacy glass_* names remain
+    // source-compatible, but the effect no longer depends on alpha or blur.
     std::uint8_t glass_x{3};
     std::uint8_t glass_width{122};
     std::uint8_t glass_height{9};
     std::uint8_t glass_radius{4};
-    std::uint8_t glass_sheen_height{2};
+    std::uint8_t glass_sheen_height{1};
     std::uint8_t glass_max_stretch{5};
     float glass_stretch_per_velocity{0.35f};
+
+    std::uint8_t liquid_bridge_width{2};
+    std::uint8_t liquid_bridge_max_span{18};
+    std::uint8_t liquid_refraction_px{1};
+    std::uint8_t liquid_refraction_radius{6};
+    std::uint8_t liquid_highlight_min{8};
+    std::uint8_t liquid_highlight_max{28};
+    std::uint8_t liquid_trail_length{6};
+    float liquid_motion_threshold{0.12f};
+    bool liquid_dither_trail{true};
+
     float spring_stiffness{0.22f};
     float spring_damping{0.35f};
     std::uint16_t max_frame_ms{48};
@@ -151,6 +165,7 @@ public:
     float selection_position() const { return selection_.position; }
     float scroll_position() const { return scroll_.position; }
     float panel_position() const { return panel_.position; }
+    float liquid_anchor_position() const { return liquid_anchor_position_; }
     MenuSelectionStyle selection_style() const { return style_.selection_style; }
     const MenuStyle& style() const { return style_; }
 
@@ -161,6 +176,7 @@ public:
 
     void set_selection_style(MenuSelectionStyle style) {
         style_.selection_style = style;
+        if (style == MenuSelectionStyle::LiquidGlass) liquid_anchor_position_ = selection_.position;
     }
 
     void focus() { focused_ = true; }
@@ -276,6 +292,7 @@ private:
     };
 
     static float absf(float value) { return value < 0.0f ? -value : value; }
+    static int absi(int value) { return value < 0 ? -value : value; }
     static int round_to_int(float value) {
         return static_cast<int>(value >= 0.0f ? value + 0.5f : value - 0.5f);
     }
@@ -303,7 +320,9 @@ private:
         if (snap) {
             reset_spring(selection_, selected);
             reset_spring(scroll_, scroll);
+            liquid_anchor_position_ = selected;
         } else {
+            liquid_anchor_position_ = selection_.position;
             selection_.target = selected;
             scroll_.target = scroll;
         }
@@ -351,6 +370,36 @@ private:
             step_spring(panel_, dt);
             elapsed -= step_ms;
         }
+        if (!spring_active(selection_)) liquid_anchor_position_ = selection_.target;
+    }
+
+    const char* format_item_value(const MenuItem& item, bool selected,
+                                  char* value, std::size_t value_size) const {
+        switch (item.kind) {
+            case MenuItemKind::Submenu:
+                return ">";
+            case MenuItemKind::Toggle:
+                return item.toggle_value && *item.toggle_value ? "ON" : "OFF";
+            case MenuItemKind::Value:
+                if (item.int_value) {
+                    std::snprintf(value, value_size, selected && editing_ ? "%d*" : "%d", *item.int_value);
+                    return value;
+                }
+                return nullptr;
+            case MenuItemKind::Action:
+            default:
+                return nullptr;
+        }
+    }
+
+    void draw_item_value(Canvas& canvas, const MenuItem& item, int y, bool selected,
+                         int panel_x, int x_offset = 0, bool on = true) const {
+        char value[16]{};
+        const char* right = format_item_value(item, selected, value, sizeof(value));
+        if (!right) return;
+        int x = Canvas::Width - style_.right_margin - canvas.text_width(right);
+        if (x < static_cast<int>(style_.text_x) + 30) x = static_cast<int>(style_.text_x) + 30;
+        canvas.text(panel_x + x + x_offset, y, right, on);
     }
 
     void draw_current_menu(Canvas& canvas, int panel_x) {
@@ -380,6 +429,9 @@ private:
 
         const int selection_y = round_to_int(static_cast<float>(style_.content_top) + selection_.position - scroll_.position);
         draw_selection(canvas, panel_x, selection_y);
+        if (style_.selection_style == MenuSelectionStyle::LiquidGlass) {
+            apply_liquid_refraction(canvas, menu, panel_x, selection_y);
+        }
     }
 
     void draw_selection(Canvas& canvas, int panel_x, int selection_y) {
@@ -397,58 +449,145 @@ private:
         }
     }
 
-    void draw_liquid_glass_selection(Canvas& canvas, int panel_x, int selection_y) {
-        const float relative_velocity = selection_.velocity - scroll_.velocity;
-        int stretch = round_to_int(absf(relative_velocity) * style_.glass_stretch_per_velocity);
-        stretch = std::max(0, std::min(stretch, static_cast<int>(style_.glass_max_stretch)));
+    void draw_liquid_bridge(Canvas& canvas, int x, int y, int width, int height,
+                            int radius, int anchor_selection_y, float speed) const {
+        const int anchor_y = anchor_selection_y - 1;
+        const int current_center = y + height / 2;
+        const int anchor_center = anchor_y + height / 2;
+        const int delta = anchor_center - current_center;
+        if (absi(delta) < 2) return;
 
-        const int base_x = static_cast<int>(style_.glass_x);
-        const int max_width = std::max(10, Canvas::Width - base_x - 2);
-        int width = static_cast<int>(style_.glass_width) - stretch * 2;
-        width = std::max(10, std::min(width, max_width));
-        const int x = panel_x + base_x + stretch;
-        const int height = static_cast<int>(style_.glass_height) + stretch;
-        const int y = selection_y - 1 - stretch / 2;
-        const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
-
-        if (focused_ && style_.glass_sheen_height > 0 && absf(relative_velocity) > 0.12f) {
-            const int sheen_height = std::min(static_cast<int>(style_.glass_sheen_height), std::max(1, height - 4));
-            const int sheen_y = relative_velocity >= 0.0f
-                ? y + height - sheen_height - 2
-                : y + 2;
-            canvas.invert_rect(x + 2, sheen_y, std::max(1, width - 4), sheen_height);
+        const int direction = delta > 0 ? 1 : -1;
+        int current_edge = direction > 0 ? y + height - 1 : y;
+        int anchor_edge = direction > 0 ? anchor_y : anchor_y + height - 1;
+        if (absi(anchor_edge - current_edge) > static_cast<int>(style_.liquid_bridge_max_span)) {
+            anchor_edge = current_edge + direction * static_cast<int>(style_.liquid_bridge_max_span);
         }
 
-        canvas.round_rect(x, y, width, height, radius, true);
-        if (focused_ && width > radius * 2 + 4) {
-            canvas.line(x + radius + 2, y + 1, x + width - radius - 3, y + 1, true);
+        const int bridge_width = std::max(1, static_cast<int>(style_.liquid_bridge_width));
+        const int inset = std::max(2, radius / 2 + 1);
+        const int left_x = x + inset;
+        const int right_x = x + width - inset - bridge_width;
+
+        for (int i = 0; i < bridge_width; ++i) {
+            canvas.line(left_x + i, current_edge, left_x + i, anchor_edge, true);
+            canvas.line(right_x + i, current_edge, right_x + i, anchor_edge, true);
+        }
+
+        const int lobe_y = anchor_edge - (direction > 0 ? 0 : 2);
+        canvas.fill_round_rect(left_x - 1, lobe_y, bridge_width + 2, 3, 1, true);
+        canvas.fill_round_rect(right_x - 1, lobe_y, bridge_width + 2, 3, 1, true);
+
+        if (!style_.liquid_dither_trail || speed <= style_.liquid_motion_threshold) return;
+        const int trail = std::min(static_cast<int>(style_.liquid_trail_length), absi(anchor_edge - current_edge));
+        for (int i = 1; i <= trail; ++i) {
+            if ((i & 1) == 0) continue;
+            const int yy = current_edge + direction * i;
+            canvas.pixel(left_x - 2, yy, true);
+            canvas.pixel(right_x + bridge_width + 1, yy, true);
         }
     }
 
-    void draw_item_value(Canvas& canvas, const MenuItem& item, int y, bool selected, int panel_x) {
-        char value[16]{};
-        const char* right = nullptr;
-        switch (item.kind) {
-            case MenuItemKind::Submenu:
-                right = ">";
-                break;
-            case MenuItemKind::Toggle:
-                right = item.toggle_value && *item.toggle_value ? "ON" : "OFF";
-                break;
-            case MenuItemKind::Value:
-                if (item.int_value) {
-                    std::snprintf(value, sizeof(value), selected && editing_ ? "%d*" : "%d", *item.int_value);
-                    right = value;
-                }
-                break;
-            case MenuItemKind::Action:
-            default:
-                break;
+    void draw_liquid_pull_lobes(Canvas& canvas, int x, int width, int height,
+                                int target_selection_y, int current_selection_y) const {
+        const int delta = target_selection_y - current_selection_y;
+        if (absi(delta) < 2) return;
+        const int target_y = target_selection_y - 1;
+        const bool target_below = delta > 0;
+        const int lobe_y = target_below ? target_y : target_y + height - 2;
+        canvas.fill_round_rect(x + 1, lobe_y, 4, 2, 1, true);
+        canvas.fill_round_rect(x + width - 5, lobe_y, 4, 2, 1, true);
+    }
+
+    void draw_liquid_highlight(Canvas& canvas, int x, int y, int width, int height,
+                               int radius, float relative_velocity, float speed) const {
+        if (!focused_ || style_.glass_sheen_height == 0 || speed <= style_.liquid_motion_threshold) return;
+        const int min_length = static_cast<int>(style_.liquid_highlight_min);
+        const int max_length = std::max(min_length, static_cast<int>(style_.liquid_highlight_max));
+        int length = min_length + round_to_int(speed * 4.0f);
+        length = std::max(2, std::min(length, max_length));
+        length = std::min(length, std::max(2, width - radius * 2 - 4));
+
+        const int available = std::max(0, width - radius * 2 - length - 4);
+        int bias = round_to_int(speed * 2.0f);
+        bias = std::max(0, std::min(bias, available));
+        const int start = relative_velocity >= 0.0f
+            ? x + radius + 2 + bias
+            : x + width - radius - 2 - length - bias;
+        const int edge_y = relative_velocity >= 0.0f ? y + height : y - 1;
+        const int lines = std::min(2, static_cast<int>(style_.glass_sheen_height));
+        for (int i = 0; i < lines; ++i) {
+            const int yy = edge_y + (relative_velocity >= 0.0f ? i : -i);
+            canvas.line(start, yy, start + length - 1, yy, true);
         }
-        if (!right) return;
-        int x = Canvas::Width - style_.right_margin - canvas.text_width(right);
-        if (x < static_cast<int>(style_.text_x) + 30) x = static_cast<int>(style_.text_x) + 30;
-        canvas.text(panel_x + x, y, right);
+    }
+
+    void draw_liquid_glass_selection(Canvas& canvas, int panel_x, int selection_y) {
+        const float relative_velocity = selection_.velocity - scroll_.velocity;
+        const float speed = absf(relative_velocity);
+        int squeeze = round_to_int(speed * style_.glass_stretch_per_velocity);
+        squeeze = std::max(0, std::min(squeeze, static_cast<int>(style_.glass_max_stretch)));
+
+        const int base_x = static_cast<int>(style_.glass_x);
+        const int max_width = std::max(10, Canvas::Width - base_x - 2);
+        int width = static_cast<int>(style_.glass_width) - squeeze * 2;
+        width = std::max(10, std::min(width, max_width));
+        const int x = panel_x + base_x + squeeze;
+        const int height = std::max(5, static_cast<int>(style_.glass_height));
+        const int y = selection_y - 1;
+        const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
+
+        canvas.round_rect(x, y, width, height, radius, true);
+
+        // While moving, break the long horizontal edges into side caps. On a
+        // 1-bit OLED this reads as a deforming membrane instead of a rigid box.
+        if (speed > style_.liquid_motion_threshold && width > radius * 2 + 20) {
+            const int cap = std::min(8, std::max(3, width / 12));
+            const int erase_x = x + radius + cap;
+            const int erase_w = width - (radius + cap) * 2;
+            if (erase_w > 0) {
+                canvas.line(erase_x, y, erase_x + erase_w - 1, y, false);
+                canvas.line(erase_x, y + height - 1, erase_x + erase_w - 1, y + height - 1, false);
+            }
+        }
+
+        const int anchor_selection_y = round_to_int(
+            static_cast<float>(style_.content_top) + liquid_anchor_position_ - scroll_.position);
+        draw_liquid_bridge(canvas, x, y, width, height, radius, anchor_selection_y, speed);
+
+        const int target_selection_y = round_to_int(
+            static_cast<float>(style_.content_top) + selection_.target - scroll_.position);
+        draw_liquid_pull_lobes(canvas, x, width, height, target_selection_y, selection_y);
+        draw_liquid_highlight(canvas, x, y, width, height, radius, relative_velocity, speed);
+    }
+
+    void apply_liquid_refraction(Canvas& canvas, const Menu& menu, int panel_x, int selection_y) const {
+        const float relative_velocity = selection_.velocity - scroll_.velocity;
+        const float speed = absf(relative_velocity);
+        if (speed <= style_.liquid_motion_threshold || style_.liquid_refraction_px == 0) return;
+
+        const int radius = static_cast<int>(style_.liquid_refraction_radius);
+        const int amount = static_cast<int>(style_.liquid_refraction_px);
+        const Frame& frame = current_frame();
+
+        for (std::size_t i = 0; i < menu.count; ++i) {
+            const int y = round_to_int(static_cast<float>(style_.content_top + i * style_.row_height) - scroll_.position);
+            if (y < 13 || y > Canvas::Height - 10) continue;
+            const int distance = y - selection_y;
+            if (absi(distance) > radius) continue;
+
+            int offset = amount;
+            if (distance < 0) offset = -amount;
+            else if (distance == 0 && relative_velocity < 0.0f) offset = -amount;
+
+            const MenuItem& item = menu.items[i];
+            const char* label = item.label ? item.label : "?";
+            const int label_x = panel_x + static_cast<int>(style_.text_x);
+            canvas.text(label_x, y, label, false);
+            draw_item_value(canvas, item, y, i == frame.selected, panel_x, 0, false);
+            canvas.text(label_x + offset, y, label, true);
+            draw_item_value(canvas, item, y, i == frame.selected, panel_x, offset, true);
+        }
     }
 
     Ui& ui_;
@@ -463,6 +602,7 @@ private:
     Spring selection_{};
     Spring scroll_{};
     Spring panel_{};
+    float liquid_anchor_position_{0.0f};
     std::uint32_t last_draw_ms_{0};
     bool has_draw_time_{false};
 };

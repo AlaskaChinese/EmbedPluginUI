@@ -4,6 +4,7 @@
 #include "epui/display_plugin.hpp"
 #include "epui/encoder_input_plugin.hpp"
 #include "epui/event_bus.hpp"
+#include "epui/fps_debug_plugin.hpp"
 #include "epui/gpio_input_plugin.hpp"
 #include "epui/i2c_transport.hpp"
 #include "epui/input_plugin.hpp"
@@ -33,6 +34,7 @@ int main() {
     epui::Canvas canvas;
     epui::Ui ui;
     PublicPage page(ui);
+    epui::FpsDebugPlugin fps(ui);
     page.draw(canvas, 0);
-    return canvas.data()[0] == 0 ? 1 : 0;
+    return canvas.data()[0] == 0 || fps.kind() != epui::PluginKind::Debug ? 1 : 0;
 }

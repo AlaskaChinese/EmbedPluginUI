@@ -6,6 +6,7 @@ namespace {
 bool wifi_enabled = true;
 bool dhcp_enabled = true;
 bool debug_enabled = false;
+bool fps_overlay = true;
 bool sleep_enabled = true;
 bool invert_enabled = false;
 bool soft_theme = true;
@@ -17,12 +18,17 @@ int contrast = 205;
 int radius = 4;
 int battery_warn = 20;
 MenuPagePlugin<12>* bound_menu = nullptr;
+FpsDebugPlugin* bound_fps = nullptr;
 
 void apply_cursor_style(void*) {
     if (!bound_menu) return;
     bound_menu->set_selection_style(glass_cursor
         ? MenuSelectionStyle::LiquidGlass
         : MenuSelectionStyle::Indicator);
+}
+
+void apply_fps_overlay(void*) {
+    if (bound_fps) bound_fps->set_visible(fps_overlay);
 }
 
 void reset_defaults(void*) {
@@ -46,9 +52,15 @@ const MenuItem power_items[] = {
 };
 const Menu power_menu = make_menu("Power", power_items);
 
+const MenuItem debug_items[] = {
+    MenuItem::toggle("FPS Overlay", fps_overlay, apply_fps_overlay),
+    MenuItem::toggle("Verbose", debug_enabled),
+};
+const Menu debug_menu = make_menu("Debug", debug_items);
+
 const MenuItem system_items[] = {
     MenuItem::submenu("Power", power_menu),
-    MenuItem::toggle("Debug", debug_enabled),
+    MenuItem::submenu("Debug", debug_menu),
     MenuItem::value("Log Level", log_level, 0, 5),
 };
 const Menu system_menu = make_menu("System", system_items);
@@ -75,7 +87,7 @@ const Menu oled_menu = make_menu("OLED", oled_items);
 const MenuItem theme_items[] = {
     MenuItem::toggle("Soft", soft_theme),
     MenuItem::value("Radius", radius, 0, 8),
-    MenuItem::toggle("Glass Cursor", glass_cursor, apply_cursor_style),
+    MenuItem::toggle("Liquid Cursor", glass_cursor, apply_cursor_style),
 };
 const Menu theme_menu = make_menu("Theme", theme_items);
 
@@ -104,10 +116,16 @@ void bind_demo_menu(MenuPagePlugin<12>* menu) {
     apply_cursor_style(nullptr);
 }
 
+void bind_demo_fps_debug(FpsDebugPlugin* fps) {
+    bound_fps = fps;
+    apply_fps_overlay(nullptr);
+}
+
 void reset_demo_menu_state() {
     wifi_enabled = true;
     dhcp_enabled = true;
     debug_enabled = false;
+    fps_overlay = true;
     sleep_enabled = true;
     invert_enabled = false;
     soft_theme = true;
@@ -119,6 +137,7 @@ void reset_demo_menu_state() {
     radius = 4;
     battery_warn = 20;
     apply_cursor_style(nullptr);
+    apply_fps_overlay(nullptr);
 }
 
 } // namespace epui::demo

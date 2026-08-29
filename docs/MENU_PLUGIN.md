@@ -57,16 +57,25 @@ The default parameters intentionally overshoot slightly before settling, produci
 
 ## Selection styles
 
-The original left-side indicator remains the default. A second liquid-glass frame style is available at runtime:
+The original left-side indicator remains the default. `LiquidGlass` is the OLED-native liquid capsule style and can be switched at runtime:
 
 ```cpp
 menu.set_selection_style(epui::MenuSelectionStyle::Indicator);
 menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
 ```
 
-`LiquidGlass` keeps the same damped-spring selection position but turns the cursor into a rounded frame. While moving, cursor velocity applies a small squash/stretch deformation and a short inverse-pixel sheen sweeps through the frame. On a monochrome OLED this makes text momentarily invert as the frame passes over it, approximating a liquid-glass lens without grayscale, a second framebuffer, or heap allocation.
+`LiquidGlass` no longer tries to imitate an LCD blur layer. It is designed around a 1-bit 128x64 OLED:
 
-The effect can be tuned through `MenuStyle`:
+- the capsule position follows the same damped spring as the menu selection;
+- velocity squeezes the capsule horizontally instead of filling the row with a rigid rectangle;
+- a metaball-like pair of side bridges stretches back toward the previous selection anchor;
+- small landing lobes pull the capsule toward the target row;
+- the long top/bottom edges open while moving so the shape reads as a deforming membrane;
+- a short specular edge highlight moves on the leading side;
+- optional checker/dither trail pixels suggest translucent persistence without grayscale;
+- nearby labels and values receive a temporary 1-pixel horizontal displacement to mimic lens refraction instead of being inverted by a solid bar.
+
+The effect is still heap-free and uses the existing 1024-byte framebuffer.
 
 ```cpp
 epui::MenuStyle style;
@@ -74,9 +83,14 @@ style.selection_style = epui::MenuSelectionStyle::LiquidGlass;
 style.glass_width = 122;
 style.glass_height = 9;
 style.glass_radius = 4;
-style.glass_sheen_height = 2;
 style.glass_max_stretch = 5;
 style.glass_stretch_per_velocity = 0.35f;
+style.liquid_bridge_width = 2;
+style.liquid_bridge_max_span = 18;
+style.liquid_refraction_px = 1;
+style.liquid_refraction_radius = 6;
+style.liquid_dither_trail = true;
+style.liquid_trail_length = 6;
 ```
 
-The Ubuntu simulator demonstrates runtime switching under `Jelly Menu -> Display -> Theme -> Glass Cursor`. Toggle it on for the liquid-glass frame or off for the original indicator.
+The Ubuntu simulator demonstrates runtime switching under `Jelly Menu -> Display -> Theme -> Liquid Cursor`.
