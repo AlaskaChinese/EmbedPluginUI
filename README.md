@@ -17,7 +17,8 @@ The portable core owns rendering, navigation and animation. Platform-specific co
 ## Current features
 
 - 128x64 1-bit Canvas with a 1024-byte framebuffer.
-- Smooth 220 ms cubic ease-out page transitions without a second framebuffer.
+- Damped-spring jelly page transitions with configurable stiffness and damping, without a second framebuffer.
+- Arbitrary-depth static menu trees with jelly selection, scrolling and submenu motion.
 - SSD1306 and SH1106 support.
 - Callback transport for MCU integrations.
 - Dependency-aware, fixed-capacity plugin runtime.
@@ -49,10 +50,13 @@ examples/simulator_ui/
 ├── app.hpp / app.cpp
 ├── home_page.hpp / home_page.cpp
 ├── sensor_page.hpp / sensor_page.cpp
-└── about_page.hpp / about_page.cpp
+├── about_page.hpp / about_page.cpp
+└── menu_demo.hpp / menu_demo.cpp
 ```
 
 Edit the page files to develop the simulated OLED UI. `app.cpp` is the page composition point; `ports/linux/simulator.cpp` and `ports/windows/simulator.cpp` only implement the desktop window/input/display adapters.
+
+Top-level left/right page changes use the same lightweight damped-spring motion language as the menu plugin. Developers can tune it globally through `epui::PageTransitionStyle` and `Ui::set_transition_style()`.
 
 ## Ubuntu 22.04 development
 
