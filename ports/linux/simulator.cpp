@@ -4,11 +4,10 @@
 #include <cstdint>
 #include <cstring>
 #include <thread>
+#include "app.hpp"
 #include "epui/display_plugin.hpp"
 #include "epui/input_plugin.hpp"
 #include "epui/plugin_registry.hpp"
-#include "epui/page.hpp"
-#include "demo_pages.hpp"
 
 using namespace epui;
 
@@ -100,6 +99,7 @@ public:
     const char* name() const override { return "x11-keyboard"; }
     PluginDependencies dependencies() const override { return {dependency_, 1}; }
     bool start() override { return display_.native_display() != nullptr; }
+
     bool poll(InputEvent& out) override {
         Display* native = display_.native_display();
         if (!native) return false;
@@ -122,6 +122,7 @@ public:
         }
         return false;
     }
+
 private:
     X11DisplayPlugin& display_;
     const char* dependency_[1]{"x11-display"};
@@ -129,14 +130,9 @@ private:
 } // namespace
 
 int main() {
-    Canvas canvas;
-    Ui ui;
-    epui::demo::HomePage home;
-    epui::demo::SensorPage sensors;
-    epui::demo::AboutPage about;
-    ui.add_page(home);
-    ui.add_page(sensors);
-    ui.add_page(about);
+    epui::demo::SimulatorUi app;
+    auto& canvas = app.canvas();
+    auto& ui = app.ui();
 
     X11DisplayPlugin display;
     X11InputPlugin input(display);
@@ -154,6 +150,7 @@ int main() {
         if (!display.present(canvas)) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
+
     plugins.stop_all();
     return 0;
 }

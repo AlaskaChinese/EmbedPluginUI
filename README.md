@@ -38,7 +38,21 @@ The portable core owns rendering, navigation and animation. Platform-specific co
 - Simulator: `epui_sim`
 - Raspberry Pi app: `epui_rpi`
 
-The implementation and public API use the same `epui` namespace and include tree; there is no separate legacy implementation namespace.
+The implementation and public API use the same `epui` namespace and include tree.
+
+## Simulator UI development
+
+The Ubuntu and Windows simulators share the same UI pages under `examples/simulator_ui/`:
+
+```text
+examples/simulator_ui/
+├── app.hpp / app.cpp
+├── home_page.hpp / home_page.cpp
+├── sensor_page.hpp / sensor_page.cpp
+└── about_page.hpp / about_page.cpp
+```
+
+Edit the page files to develop the simulated OLED UI. `app.cpp` is the page composition point; `ports/linux/simulator.cpp` and `ports/windows/simulator.cpp` only implement the desktop window/input/display adapters.
 
 ## Ubuntu 22.04 development
 
@@ -76,5 +90,3 @@ epui::Oled128x64 oled(transport, epui::OledController::SSD1306);
 epui::Canvas canvas;
 epui::Ui ui;
 ```
-
-The original STM32F429 OLED example remains under `Examples/0.96_inch_oled_f429` as a legacy hardware reference.

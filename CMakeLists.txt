@@ -14,23 +14,36 @@ add_library(epui
 )
 target_include_directories(epui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+set(EPUI_SIM_UI_SOURCES
+    examples/simulator_ui/app.cpp
+    examples/simulator_ui/home_page.cpp
+    examples/simulator_ui/sensor_page.cpp
+    examples/simulator_ui/about_page.cpp
+)
+
 option(EPUI_BUILD_WINDOWS_SIM "Build the Win32 OLED simulator" ON)
 option(EPUI_BUILD_LINUX_SIM "Build the Linux/X11 OLED simulator" ON)
 option(EPUI_BUILD_RPI "Build the Raspberry Pi 5 application" OFF)
 option(EPUI_BUILD_TESTS "Build EmbedPluginUI tests" ON)
 
 if(WIN32 AND EPUI_BUILD_WINDOWS_SIM)
-    add_executable(epui_sim WIN32 ports/windows/simulator.cpp)
+    add_executable(epui_sim WIN32
+        ports/windows/simulator.cpp
+        ${EPUI_SIM_UI_SOURCES}
+    )
     target_link_libraries(epui_sim PRIVATE epui)
-    target_include_directories(epui_sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/examples)
+    target_include_directories(epui_sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/examples/simulator_ui)
 endif()
 
 if(UNIX AND NOT APPLE AND EPUI_BUILD_LINUX_SIM)
     find_package(X11 QUIET)
     if(X11_FOUND)
-        add_executable(epui_sim ports/linux/simulator.cpp)
+        add_executable(epui_sim
+            ports/linux/simulator.cpp
+            ${EPUI_SIM_UI_SOURCES}
+        )
         target_link_libraries(epui_sim PRIVATE epui X11::X11)
-        target_include_directories(epui_sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/examples)
+        target_include_directories(epui_sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/examples/simulator_ui)
     else()
         message(WARNING "X11 development headers were not found; epui_sim will not be built. On Ubuntu 22.04: sudo apt install libx11-dev")
     endif()
