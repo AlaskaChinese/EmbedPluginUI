@@ -28,6 +28,18 @@ settings.start();
 - `Submenu`: points to another static `Menu`.
 - `Toggle`: edits a referenced `bool` and can invoke a change callback.
 - `Value`: edits a referenced integer with min/max/step constraints and can invoke a change callback.
+- `Choice`: cycles through a static string option table and stores the selected index in a referenced `uint8_t`.
+
+Example choice item:
+
+```cpp
+std::uint8_t style_index = 0;
+const char* const styles[] = {"Indicator", "Glide", "Slide"};
+
+const epui::MenuItem items[] = {
+    epui::MenuItem::choice("Cursor", style_index, styles),
+};
+```
 
 No `std::vector`, `std::function`, runtime allocation or dynamic plugin loading is required.
 
@@ -37,14 +49,14 @@ While the menu is focused:
 
 - `Next`: next item, or increase a value while editing.
 - `Prev`: previous item, or decrease a value while editing.
-- `Select`: enter submenu, run action, toggle, or enter/leave value editing.
+- `Select`: enter submenu, run action, toggle, cycle a choice, or enter/leave value editing.
 - `Back`: leave value editing, go to the parent menu, or unfocus at the root.
 
 When the root menu is unfocused, `Next/Prev` return to normal top-level `Ui` page navigation. `Select` focuses the menu again. This lets the same three-button or encoder input device drive both pages and arbitrary menu depth.
 
 ## Layout freedom
 
-The framework owns the layout parameters; an application or demo chooses values that suit its display and font. In particular, menu text and right-side values/arrows are positioned from the selection-frame edges rather than from unrelated screen margins:
+The framework owns the layout parameters; an application or demo chooses values that suit its display and font. Menu text and right-side values/arrows are positioned from the selection-frame edges:
 
 ```cpp
 epui::MenuStyle style;
@@ -54,67 +66,87 @@ style.content_inset_left = 8;
 style.content_inset_right = 8;
 ```
 
-With equal insets, the resting frame has the same visual breathing room on both sides. Applications can deliberately make the two values different when needed. `text_x` and `right_margin` remain in the struct for source compatibility with older code, but new projects should prefer `content_inset_left/right`.
+With equal insets, the frame has the same visual breathing room on both sides. Applications can deliberately make the values different. `text_x` and `right_margin` remain for source compatibility, but new projects should prefer `content_inset_left/right`.
 
 Vertical spacing is also application-defined:
 
 ```cpp
-style.row_height = 12;
+style.row_height = 11;
 style.glass_height = 9;
 ```
 
-This leaves a visible gap between adjacent selection capsules. A compact menu can keep `row_height = 10`; a metaball-heavy animation generally looks better around 11-13 pixels with a 9-pixel capsule. The framework does not force either choice.
+The Ubuntu demo uses an 11-pixel row pitch and a 9-pixel frame, leaving a compact 2-pixel gap. The framework does not force those values.
 
-## Jelly animation
+## Three selection animations
 
-Selection, list scrolling and submenu slide-in use a small damped spring integrator. `MenuStyle::spring_stiffness` and `spring_damping` control the feel without requiring a second framebuffer or heap allocation.
+### Indicator
 
-```cpp
-epui::MenuStyle style;
-style.spring_stiffness = 0.22f;
-style.spring_damping = 0.35f;
-epui::MenuPagePlugin<12> menu(ui, root, "menu", style);
-```
-
-The default parameters intentionally overshoot slightly before settling, producing the OLED "jelly" motion demonstrated by the Ubuntu simulator.
-
-## Selection styles
-
-The original left-side indicator remains the default. `LiquidGlass` is the OLED-native liquid/metaball style and can be switched at runtime:
+`Indicator` is the original left-side marker. Its selection and scrolling use the damped spring model and intentionally overshoot slightly before settling.
 
 ```cpp
 menu.set_selection_style(epui::MenuSelectionStyle::Indicator);
-menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
 ```
 
-`LiquidGlass` does not try to reproduce alpha blur or desktop compositing. It is designed around a 1-bit 128x64 OLED. During a selection move, each end of the capsule behaves like a small liquid droplet. The previous/current pair first separates through a narrow neck, then the current/target pair fuses into the destination. The bridge width narrows in the middle like a simplified 2D metaball, while the main text band stays open and readable.
-
-The effect combines:
-
-- damped-spring position and overshoot;
-- a configurable capsule outline;
-- filled metaball droplets at the left and right capsule ends;
-- a variable-width neck between the two droplet centers;
-- a two-phase source-to-current then current-to-target fusion;
-- a short leading-edge highlight;
-- optional sparse trail pixels;
-- optional 1-pixel label/value refraction near the moving capsule.
+Spring feel is configurable:
 
 ```cpp
-epui::MenuStyle style;
-style.selection_style = epui::MenuSelectionStyle::LiquidGlass;
-style.row_height = 12;
-style.glass_width = 122;
-style.glass_height = 9;
-style.glass_radius = 4;
-style.content_inset_left = 8;
-style.content_inset_right = 8;
-style.liquid_metaball_radius = 3;
-style.liquid_bridge_width = 1;
-style.liquid_bridge_max_span = 16;
-style.liquid_refraction_px = 1;
-style.liquid_refraction_radius = 4;
-style.liquid_dither_trail = false;
+style.spring_stiffness = 0.22f;
+style.spring_damping = 0.35f;
 ```
 
-The Ubuntu simulator uses those values as one recommended 0.96-inch OLED preset, not as framework-wide constants. Runtime switching remains under `Jelly Menu -> Display -> Theme -> Liquid Cursor`.
+### GlideFrame
+
+`GlideFrame` is based on the classic small-U8g2-menu approach: each integer state moves quickly while far from its target, then approaches one pixel at a time near the target.
+
+It animates three independent quantities:
+
+- frame Y position;
+- frame width, optionally fitted to the selected row content;
+- long-menu scroll offset.
+
+```cpp
+style.selection_style = epui::MenuSelectionStyle::GlideFrame;
+style.glide_fit_content = true;
+style.glide_position_fast_step = 5;
+style.glide_position_slow_zone = 4;
+style.glide_width_fast_step = 10;
+style.glide_width_slow_zone = 5;
+style.glide_scroll_fast_step = 4;
+style.glide_scroll_slow_zone = 4;
+style.glide_tick_ms = 16;
+```
+
+There is no metaball, refraction, dither trail or geometry distortion in this renderer.
+
+### SlideFrame
+
+`SlideFrame` uses the same clean two-speed Y and long-menu scrolling as `GlideFrame`, but the rounded frame keeps its full configured width. This is useful when a consistent full-row selection box is visually preferable.
+
+```cpp
+menu.set_selection_style(epui::MenuSelectionStyle::SlideFrame);
+```
+
+`LiquidGlass` remains as a source-compatible alias of `GlideFrame` so older applications still compile, but new code should use the three names above.
+
+## Smooth scrolling beyond one page
+
+A menu can contain more items than `visible_rows`. Once selection moves beyond the visible window, frame styles animate the list scroll offset with the same two-speed logic instead of jumping one row at a time.
+
+```cpp
+style.visible_rows = 4;
+style.row_height = 11;
+style.glide_scroll_fast_step = 4;
+style.glide_scroll_slow_zone = 4;
+```
+
+The Ubuntu simulator contains both a root menu longer than one page and a dedicated ten-item `Long Menu` for exercising this behavior.
+
+## Ubuntu demo
+
+The simulator exposes all three selection animations under:
+
+```text
+Jelly Menu -> Display -> Theme -> Cursor
+```
+
+Press `Select` on `Cursor` to cycle through `Indicator`, `Glide` and `Slide`. The demo defaults to `Glide`.
