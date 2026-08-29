@@ -17,18 +17,185 @@ static const std::uint8_t kFont5x7[][5] = {
 }
 
 Canvas::Canvas() { clear(); }
-void Canvas::clear(bool on) { std::memset(buffer_, on ? 0xFF : 0x00, sizeof(buffer_)); }
-void Canvas::set_origin(int x, int y) { origin_x_=x; origin_y_=y; }
-void Canvas::reset_origin() { origin_x_=origin_y_=0; }
-void Canvas::pixel(int x, int y, bool on) { x+=origin_x_; y+=origin_y_; if(x<0||x>=Width||y<0||y>=Height)return; const std::size_t i=static_cast<std::size_t>(x+(y/8)*Width); const std::uint8_t m=static_cast<std::uint8_t>(1u<<(y&7)); if(on) buffer_[i]|=m; else buffer_[i]&=static_cast<std::uint8_t>(~m); }
-void Canvas::line(int x0,int y0,int x1,int y1,bool on){int dx=std::abs(x1-x0),sx=x0<x1?1:-1;int dy=-std::abs(y1-y0),sy=y0<y1?1:-1;int err=dx+dy;while(true){pixel(x0,y0,on);if(x0==x1&&y0==y1)break;const int e2=2*err;if(e2>=dy){err+=dy;x0+=sx;}if(e2<=dx){err+=dx;y0+=sy;}}}
-void Canvas::rect(int x,int y,int w,int h,bool on){if(w<=0||h<=0)return;line(x,y,x+w-1,y,on);line(x,y+h-1,x+w-1,y+h-1,on);line(x,y,x,y+h-1,on);line(x+w-1,y,x+w-1,y+h-1,on);}
-void Canvas::fill_rect(int x,int y,int w,int h,bool on){for(int yy=0;yy<h;++yy)line(x,y+yy,x+w-1,y+yy,on);}
-void Canvas::round_rect(int x,int y,int w,int h,int r,bool on){r=std::max(1,std::min(r,std::min(w,h)/2));line(x+r,y,x+w-r-1,y,on);line(x+r,y+h-1,x+w-r-1,y+h-1,on);line(x,y+r,x,y+h-r-1,on);line(x+w-1,y+r,x+w-1,y+h-r-1,on);int px=r,py=0,err=1-r;while(px>=py){pixel(x+r-px,y+r-py,on);pixel(x+r-py,y+r-px,on);pixel(x+w-r-1+px,y+r-py,on);pixel(x+w-r-1+py,y+r-px,on);pixel(x+r-px,y+h-r-1+py,on);pixel(x+r-py,y+h-r-1+px,on);pixel(x+w-r-1+px,y+h-r-1+py,on);pixel(x+w-r-1+py,y+h-r-1+px,on);++py;if(err<0)err+=2*py+1;else{--px;err+=2*(py-px)+1;}}}
-void Canvas::fill_round_rect(int x,int y,int w,int h,int r,bool on){r=std::max(1,std::min(r,std::min(w,h)/2));for(int yy=0;yy<h;++yy){int inset=0;if(yy<r){const int d=r-yy-1;inset=std::max(0,r-static_cast<int>(std::sqrt(static_cast<double>(r*r-d*d))));}else if(yy>=h-r){const int d=yy-(h-r);inset=std::max(0,r-static_cast<int>(std::sqrt(static_cast<double>(r*r-d*d))));}line(x+inset,y+yy,x+w-inset-1,y+yy,on);}}
-void Canvas::circle(int cx,int cy,int r,bool on){int x=r,y=0,err=0;while(x>=y){pixel(cx+x,cy+y,on);pixel(cx+y,cy+x,on);pixel(cx-y,cy+x,on);pixel(cx-x,cy+y,on);pixel(cx-x,cy-y,on);pixel(cx-y,cy-x,on);pixel(cx+y,cy-x,on);pixel(cx+x,cy-y,on);if(err<=0){++y;err+=2*y+1;}if(err>0){--x;err-=2*x+1;}}}
-void Canvas::progress_bar(int x,int y,int w,int h,float value){value=std::max(0.0f,std::min(1.0f,value));round_rect(x,y,w,h,2,true);const int inner=static_cast<int>((w-4)*value+0.5f);if(inner>0)fill_rect(x+2,y+2,inner,h-4,true);}
-void Canvas::glyph5x7(int x,int y,char c,bool on){if(c<0x20||c>0x7E)c='?';const auto& g=kFont5x7[static_cast<unsigned char>(c)-0x20];for(int col=0;col<5;++col)for(int row=0;row<7;++row)if(g[col]&(1u<<row))pixel(x+col,y+row,on);}
-void Canvas::text(int x,int y,const char* s,bool on,int spacing){if(!s)return;for(;*s;++s){glyph5x7(x,y,*s,on);x+=5+spacing;}}
-int Canvas::text_width(const char* s,int spacing)const{if(!s||!*s)return 0;int n=0;while(*s++)++n;return n*5+(n-1)*spacing;}
+
+void Canvas::clear(bool on) {
+    std::memset(buffer_, on ? 0xFF : 0x00, sizeof(buffer_));
+}
+
+void Canvas::set_origin(int x, int y) {
+    origin_x_ = x;
+    origin_y_ = y;
+}
+
+void Canvas::reset_origin() {
+    origin_x_ = 0;
+    origin_y_ = 0;
+}
+
+void Canvas::set_clip_rect(int x, int y, int w, int h) {
+    if (w <= 0 || h <= 0) {
+        clip_x0_ = clip_x1_ = 0;
+        clip_y0_ = clip_y1_ = 0;
+        return;
+    }
+
+    const int x0 = x + origin_x_;
+    const int y0 = y + origin_y_;
+    const int x1 = x0 + w;
+    const int y1 = y0 + h;
+    clip_x0_ = std::max(0, std::min(Width, x0));
+    clip_y0_ = std::max(0, std::min(Height, y0));
+    clip_x1_ = std::max(clip_x0_, std::max(0, std::min(Width, x1)));
+    clip_y1_ = std::max(clip_y0_, std::max(0, std::min(Height, y1)));
+}
+
+void Canvas::reset_clip() {
+    clip_x0_ = 0;
+    clip_y0_ = 0;
+    clip_x1_ = Width;
+    clip_y1_ = Height;
+}
+
+void Canvas::pixel(int x, int y, bool on) {
+    x += origin_x_;
+    y += origin_y_;
+    if (x < 0 || x >= Width || y < 0 || y >= Height) return;
+    if (x < clip_x0_ || x >= clip_x1_ || y < clip_y0_ || y >= clip_y1_) return;
+    const std::size_t i = static_cast<std::size_t>(x + (y / 8) * Width);
+    const std::uint8_t m = static_cast<std::uint8_t>(1u << (y & 7));
+    if (on) buffer_[i] |= m;
+    else buffer_[i] &= static_cast<std::uint8_t>(~m);
+}
+
+void Canvas::line(int x0, int y0, int x1, int y1, bool on) {
+    int dx = std::abs(x1 - x0);
+    const int sx = x0 < x1 ? 1 : -1;
+    int dy = -std::abs(y1 - y0);
+    const int sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+    while (true) {
+        pixel(x0, y0, on);
+        if (x0 == x1 && y0 == y1) break;
+        const int e2 = 2 * err;
+        if (e2 >= dy) {
+            err += dy;
+            x0 += sx;
+        }
+        if (e2 <= dx) {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+void Canvas::rect(int x, int y, int w, int h, bool on) {
+    if (w <= 0 || h <= 0) return;
+    line(x, y, x + w - 1, y, on);
+    line(x, y + h - 1, x + w - 1, y + h - 1, on);
+    line(x, y, x, y + h - 1, on);
+    line(x + w - 1, y, x + w - 1, y + h - 1, on);
+}
+
+void Canvas::fill_rect(int x, int y, int w, int h, bool on) {
+    for (int yy = 0; yy < h; ++yy) line(x, y + yy, x + w - 1, y + yy, on);
+}
+
+void Canvas::round_rect(int x, int y, int w, int h, int r, bool on) {
+    r = std::max(1, std::min(r, std::min(w, h) / 2));
+    line(x + r, y, x + w - r - 1, y, on);
+    line(x + r, y + h - 1, x + w - r - 1, y + h - 1, on);
+    line(x, y + r, x, y + h - r - 1, on);
+    line(x + w - 1, y + r, x + w - 1, y + h - r - 1, on);
+    int px = r;
+    int py = 0;
+    int err = 1 - r;
+    while (px >= py) {
+        pixel(x + r - px, y + r - py, on);
+        pixel(x + r - py, y + r - px, on);
+        pixel(x + w - r - 1 + px, y + r - py, on);
+        pixel(x + w - r - 1 + py, y + r - px, on);
+        pixel(x + r - px, y + h - r - 1 + py, on);
+        pixel(x + r - py, y + h - r - 1 + px, on);
+        pixel(x + w - r - 1 + px, y + h - r - 1 + py, on);
+        pixel(x + w - r - 1 + py, y + h - r - 1 + px, on);
+        ++py;
+        if (err < 0) err += 2 * py + 1;
+        else {
+            --px;
+            err += 2 * (py - px) + 1;
+        }
+    }
+}
+
+void Canvas::fill_round_rect(int x, int y, int w, int h, int r, bool on) {
+    r = std::max(1, std::min(r, std::min(w, h) / 2));
+    for (int yy = 0; yy < h; ++yy) {
+        int inset = 0;
+        if (yy < r) {
+            const int d = r - yy - 1;
+            inset = std::max(0, r - static_cast<int>(std::sqrt(static_cast<double>(r * r - d * d))));
+        } else if (yy >= h - r) {
+            const int d = yy - (h - r);
+            inset = std::max(0, r - static_cast<int>(std::sqrt(static_cast<double>(r * r - d * d))));
+        }
+        line(x + inset, y + yy, x + w - inset - 1, y + yy, on);
+    }
+}
+
+void Canvas::circle(int cx, int cy, int r, bool on) {
+    int x = r;
+    int y = 0;
+    int err = 0;
+    while (x >= y) {
+        pixel(cx + x, cy + y, on);
+        pixel(cx + y, cy + x, on);
+        pixel(cx - y, cy + x, on);
+        pixel(cx - x, cy + y, on);
+        pixel(cx - x, cy - y, on);
+        pixel(cx - y, cy - x, on);
+        pixel(cx + y, cy - x, on);
+        pixel(cx + x, cy - y, on);
+        if (err <= 0) {
+            ++y;
+            err += 2 * y + 1;
+        }
+        if (err > 0) {
+            --x;
+            err -= 2 * x + 1;
+        }
+    }
+}
+
+void Canvas::progress_bar(int x, int y, int w, int h, float value) {
+    value = std::max(0.0f, std::min(1.0f, value));
+    round_rect(x, y, w, h, 2, true);
+    const int inner = static_cast<int>((w - 4) * value + 0.5f);
+    if (inner > 0) fill_rect(x + 2, y + 2, inner, h - 4, true);
+}
+
+void Canvas::glyph5x7(int x, int y, char c, bool on) {
+    if (c < 0x20 || c > 0x7E) c = '?';
+    const auto& g = kFont5x7[static_cast<unsigned char>(c) - 0x20];
+    for (int col = 0; col < 5; ++col) {
+        for (int row = 0; row < 7; ++row) {
+            if (g[col] & (1u << row)) pixel(x + col, y + row, on);
+        }
+    }
+}
+
+void Canvas::text(int x, int y, const char* s, bool on, int spacing) {
+    if (!s) return;
+    for (; *s; ++s) {
+        glyph5x7(x, y, *s, on);
+        x += 5 + spacing;
+    }
+}
+
+int Canvas::text_width(const char* s, int spacing) const {
+    if (!s || !*s) return 0;
+    int n = 0;
+    while (*s++) ++n;
+    return n * 5 + (n - 1) * spacing;
+}
+
 } // namespace epui
