@@ -117,6 +117,13 @@ struct MenuStyle {
     std::uint8_t row_height{10};
     std::uint8_t visible_rows{4};
 
+    // Pixel viewport for menu-body rendering. viewport_bottom is exclusive.
+    // Defaults reserve y=60..63 for Ui page navigation while still allowing
+    // rows that cross an edge to be visibly clipped instead of disappearing.
+    std::uint8_t viewport_top{13};
+    std::uint8_t viewport_bottom{60};
+    bool allow_partial_rows{true};
+
     // Legacy layout fields remain source-compatible. New projects should use
     // content_inset_left/right, measured from the selection frame itself.
     std::uint8_t text_x{11};
@@ -166,8 +173,8 @@ struct MenuStyle {
     float glass_motion_threshold{0.12f};
 
     // When selection crosses a viewport edge, the list scrolls while the
-    // rounded frame stays anchored to the edge. This spring kick gives the
-    // anchored frame a visible push/rebound instead of making it look frozen.
+    // rounded frame stays near the edge. This spring kick makes the handoff
+    // visible even when the final frame slot barely changes.
     float scroll_handoff_kick{2.0f};
 
     // One spring model is used by Indicator/LiquidGlass and by the visible
@@ -185,7 +192,7 @@ public:
     MenuPagePlugin(Ui& ui, const Menu& root, const char* plugin_name = "menu",
                    MenuStyle style = MenuStyle{}, bool auto_focus = true)
         : ui_(ui), root_(root), name_(plugin_name), style_(style), focused_(auto_focus) {
-        frames_[0] = {&root_, 0};
+        frames_[0] = {&root_, 0, 0, 0};
         depth_ = 1;
         sync_selection(true);
     }
@@ -212,6 +219,7 @@ public:
     std::size_t depth() const { return depth_; }
     std::size_t selected_index() const { return current_frame().selected; }
     std::size_t first_visible_index() const { return current_frame().first_visible; }
+    int viewport_scroll_target() const { return current_frame().scroll_target; }
     const Menu& current_menu() const { return *current_frame().menu; }
     float selection_position() const { return selection_.position; }
     float scroll_position() const { return scroll_.position; }
@@ -266,7 +274,7 @@ public:
     void blur() { focused_ = false; editing_ = false; }
 
     void reset_to_root(bool focus_menu = true) {
-        frames_[0] = {&root_, 0};
+        frames_[0] = {&root_, 0, 0, 0};
         depth_ = 1;
         editing_ = false;
         focused_ = focus_menu;
@@ -346,7 +354,7 @@ public:
 
     bool enter_submenu(const Menu& menu) {
         if (depth_ >= MaxDepth) return false;
-        frames_[depth_++] = {&menu, 0};
+        frames_[depth_++] = {&menu, 0, 0, 0};
         editing_ = false;
         sync_selection(true);
         glide_width_initialized_ = false;
@@ -385,6 +393,7 @@ private:
         const Menu* menu{nullptr};
         std::size_t selected{0};
         std::size_t first_visible{0};
+        int scroll_target{0};
     };
 
     struct Spring {
@@ -393,7 +402,7 @@ private:
         float velocity{0.0f};
     };
 
-    static constexpr int ContentClipTop = 13;
+    static constexpr int GlyphHeight = 7;
 
     static float absf(float value) { return value < 0.0f ? -value : value; }
     static int absi(int value) { return value < 0 ? -value : value; }
@@ -421,16 +430,6 @@ private:
         return true;
     }
 
-    static bool row_can_draw(int y) {
-        // Protect the header/separator, but allow a last row to be partially
-        // visible at the physical bottom edge. Canvas clips off-screen pixels.
-        return y >= ContentClipTop && y < Canvas::Height;
-    }
-
-    static bool frame_can_draw(int y, int height) {
-        return y < Canvas::Height && y + height > ContentClipTop;
-    }
-
     Frame& current_frame() { return frames_[depth_ - 1]; }
     const Frame& current_frame() const { return frames_[depth_ - 1]; }
 
@@ -443,6 +442,47 @@ private:
         return style_.selection_style == MenuSelectionStyle::GlideFrame
             || style_.selection_style == MenuSelectionStyle::SlideFrame
             || style_.selection_style == MenuSelectionStyle::LiquidGlass;
+    }
+
+    int viewport_top_px() const {
+        return std::max(0, std::min(Canvas::Height - 1, static_cast<int>(style_.viewport_top)));
+    }
+
+    int viewport_bottom_px() const {
+        const int top = viewport_top_px();
+        const int requested = static_cast<int>(style_.viewport_bottom);
+        return std::max(top + 1, std::min(Canvas::Height, requested));
+    }
+
+    int resting_frame_height() const {
+        return std::max(GlyphHeight, static_cast<int>(style_.glass_height));
+    }
+
+    int resting_frame_top_padding() const {
+        return (resting_frame_height() - GlyphHeight) / 2;
+    }
+
+    int resting_frame_bottom_padding() const {
+        return resting_frame_height() - GlyphHeight - resting_frame_top_padding();
+    }
+
+    int selection_top_anchor() const {
+        const int natural_top = static_cast<int>(style_.content_top) - resting_frame_top_padding();
+        return std::max(viewport_top_px(), natural_top);
+    }
+
+    bool row_can_draw(int y) const {
+        const int top = viewport_top_px();
+        const int bottom = viewport_bottom_px();
+        if (style_.allow_partial_rows) return y < bottom && y + GlyphHeight > top;
+        return y >= top && y + GlyphHeight <= bottom;
+    }
+
+    bool frame_can_draw(int y, int height) const {
+        const int top = viewport_top_px();
+        const int bottom = viewport_bottom_px();
+        if (style_.allow_partial_rows) return y < bottom && y + height > top;
+        return y >= top && y + height <= bottom;
     }
 
     int frame_x() const { return static_cast<int>(style_.glass_x); }
@@ -470,6 +510,7 @@ private:
     void update_viewport_for_selection(Frame& frame) {
         if (!frame.menu || frame.menu->count == 0) {
             frame.first_visible = 0;
+            frame.scroll_target = 0;
             return;
         }
 
@@ -478,20 +519,45 @@ private:
             ? frame.menu->count - rows : 0u;
         if (frame.first_visible > max_first) frame.first_visible = max_first;
 
-        // Keep the current viewport as long as the new selection is already
-        // visible. This is the key hysteresis: moving back up within the same
-        // window moves only the frame instead of dragging the whole list.
+        // Sticky logical window: if the selected item is already inside the
+        // current visible-row set, do not drag the page with the frame.
         if (frame.selected < frame.first_visible) {
             frame.first_visible = frame.selected;
         } else if (frame.selected >= frame.first_visible + rows) {
             frame.first_visible = frame.selected - rows + 1u;
         }
-
         if (frame.first_visible > max_first) frame.first_visible = max_first;
+
+        const int base_scroll = static_cast<int>(frame.first_visible * style_.row_height);
+        int scroll = std::max(frame.scroll_target, base_scroll);
+        const int raw_y = static_cast<int>(style_.content_top)
+            + static_cast<int>(frame.selected * style_.row_height);
+        const int top_padding = resting_frame_top_padding();
+        const int bottom_padding = resting_frame_bottom_padding();
+        const int top_anchor = selection_top_anchor();
+        const int bottom_edge = viewport_bottom_px();
+        const int frame_height = resting_frame_height();
+
+        // If the configured viewport is too short for the resting frame, pin
+        // the frame top and let clipping handle the unavoidable overflow.
+        if (bottom_edge - top_anchor < frame_height) {
+            frame.scroll_target = std::max(base_scroll, raw_y - top_padding - top_anchor);
+            return;
+        }
+
+        const int selected_top = raw_y - scroll - top_padding;
+        const int selected_bottom = raw_y - scroll + GlyphHeight + bottom_padding;
+        if (selected_bottom > bottom_edge) {
+            scroll += selected_bottom - bottom_edge;
+        } else if (selected_top < top_anchor) {
+            scroll -= top_anchor - selected_top;
+        }
+
+        frame.scroll_target = std::max(base_scroll, std::max(0, scroll));
     }
 
     int selected_scroll_target() const {
-        return static_cast<int>(current_frame().first_visible * style_.row_height);
+        return current_frame().scroll_target;
     }
 
     int effective_scroll_position() const {
@@ -502,8 +568,10 @@ private:
     void sync_selection(bool snap, int direction = 0) {
         Frame& frame = current_frame();
         const std::size_t old_first_visible = frame.first_visible;
+        const int old_scroll_target = frame.scroll_target;
         update_viewport_for_selection(frame);
-        const bool viewport_shifted = frame.first_visible != old_first_visible;
+        const bool viewport_shifted = frame.first_visible != old_first_visible
+            || frame.scroll_target != old_scroll_target;
 
         const float selected = static_cast<float>(frame.selected * style_.row_height);
         const int glide_selected = static_cast<int>(frame.selected * style_.row_height);
@@ -527,11 +595,8 @@ private:
             glide_scroll_target_ = scroll_target;
             // Do not jump glide_frame_.target to the final item. step_glide()
             // advances the virtual U8g2-style path and feeds each intermediate
-            // relative position to the spring follower.
+            // item-minus-scroll position to the visible spring follower.
 
-            // At an edge handoff the final on-screen row can stay unchanged
-            // while the content scrolls underneath it. Give rounded frames a
-            // small spring impulse so the user's key press remains visible.
             if (viewport_shifted && direction != 0 && is_rounded_frame_style()) {
                 edge_handoff_.target = 0.0f;
                 edge_handoff_.velocity += static_cast<float>(direction)
@@ -581,7 +646,7 @@ private:
                      static_cast<int>(style_.glide_scroll_slow_zone));
 
         // The deterministic path is only a moving target. The visible frame
-        // follows it with exactly the same damped spring model as Glass.
+        // follows item-minus-scroll through the same damped spring as Glass.
         glide_frame_.target = static_cast<float>(glide_position_ - glide_scroll_position_);
     }
 
@@ -604,9 +669,6 @@ private:
         if (elapsed > style_.max_frame_ms) elapsed = style_.max_frame_ms;
 
         const std::uint32_t spring_elapsed = elapsed;
-
-        // Only Glide/Slide advance the deterministic target path. Other styles
-        // leave the glide spring completely isolated.
         if (is_glide_style()) {
             const std::uint32_t tick = style_.glide_tick_ms == 0 ? 1u : style_.glide_tick_ms;
             glide_accumulator_ms_ += spring_elapsed;
@@ -618,8 +680,6 @@ private:
             glide_accumulator_ms_ = 0;
         }
 
-        // Integrate all visible spring states. Glide/Slide's frame spring uses
-        // the exact same stiffness/damping as Glass.
         while (elapsed > 0) {
             const std::uint32_t step_ms = elapsed > 8 ? 8 : elapsed;
             const float dt = static_cast<float>(step_ms) / 16.0f;
@@ -712,8 +772,13 @@ private:
         canvas.text(panel_x + Canvas::Width - canvas.text_width(level) - 3, 3, level);
         canvas.line(panel_x + 2, 12, panel_x + Canvas::Width - 3, 12);
 
+        const int clip_top = viewport_top_px();
+        const int clip_bottom = viewport_bottom_px();
+        canvas.set_clip_rect(panel_x, clip_top, Canvas::Width, clip_bottom - clip_top);
+
         if (menu.count == 0) {
             canvas.text(panel_x + 10, style_.content_top + 8, "(EMPTY)");
+            canvas.reset_clip();
             return;
         }
 
@@ -727,6 +792,7 @@ private:
         }
 
         draw_selection(canvas, panel_x);
+        canvas.reset_clip();
     }
 
     int shared_jelly_stretch(float relative_velocity) const {
@@ -742,9 +808,9 @@ private:
         int width = std::max(10, std::min(base_width, max_width)) - stretch * 2;
         width = std::max(10, width);
         const int x = panel_x + frame_x() + stretch;
-        const int base_height = std::max(7, static_cast<int>(style_.glass_height));
+        const int base_height = resting_frame_height();
         const int height = base_height + stretch;
-        const int y = selection_y - 2 - stretch / 2;
+        const int y = selection_y - resting_frame_top_padding() - stretch / 2;
         if (!frame_can_draw(y, height)) return;
         const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
 
