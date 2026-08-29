@@ -24,6 +24,7 @@ const char* const cursor_style_options[] = {
     "Indicator",
     "Glide",
     "Slide",
+    "Glass",
 };
 
 void apply_cursor_style(void*) {
@@ -34,6 +35,9 @@ void apply_cursor_style(void*) {
             break;
         case 2:
             bound_menu->set_selection_style(MenuSelectionStyle::SlideFrame);
+            break;
+        case 3:
+            bound_menu->set_selection_style(MenuSelectionStyle::LiquidGlass);
             break;
         case 1:
         default:
@@ -150,9 +154,9 @@ const Menu& demo_menu_root() {
 MenuStyle demo_menu_style() {
     MenuStyle style{};
 
-    // Demo choice only: 11 px pitch keeps a 9 px frame compact while leaving
-    // a clean 2 px visual gap between neighboring rows.
-    style.row_height = 11;
+    // The frame is now 11 px high (one extra pixel above and below the old
+    // 9 px frame), so a 13 px row pitch preserves a clean 2 px gap.
+    style.row_height = 13;
     style.visible_rows = 4;
 
     // Symmetric padding between the frame and label/right-side indicator.
@@ -171,6 +175,19 @@ MenuStyle demo_menu_style() {
     style.glide_scroll_fast_step = 4;
     style.glide_scroll_slow_zone = 4;
     style.glide_tick_ms = 16;
+
+    // A restrained jelly kick keeps the clean glide/slide path but gives the
+    // frame body a short elastic lag and settle.
+    style.frame_jelly_kick = 2;
+    style.frame_jelly_max_stretch = 2;
+    style.frame_jelly_stiffness = 0.34f;
+    style.frame_jelly_damping = 0.28f;
+
+    // First-generation LiquidGlass: highlight only while the spring moves.
+    style.glass_sheen_height = 2;
+    style.glass_max_stretch = 5;
+    style.glass_stretch_per_velocity = 0.35f;
+    style.glass_motion_threshold = 0.12f;
     return style;
 }
 
