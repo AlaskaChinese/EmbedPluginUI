@@ -14,10 +14,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential cmake libx11-dev
       - name: Build core and Linux simulator
         run: |
-          cmake -S . -B build -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic"
+          cmake -S . -B build -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror"
           cmake --build build -j2
           ctest --test-dir build --output-on-failure
       - name: Build Raspberry Pi/Linux I2C port
         run: |
-          cmake -S . -B build-rpi -DEPUI_BUILD_LINUX_SIM=OFF -DEPUI_BUILD_RPI=ON -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic"
+          cmake -S . -B build-rpi -DEPUI_BUILD_LINUX_SIM=OFF -DEPUI_BUILD_RPI=ON -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror"
           cmake --build build-rpi -j2
+          ctest --test-dir build-rpi --output-on-failure

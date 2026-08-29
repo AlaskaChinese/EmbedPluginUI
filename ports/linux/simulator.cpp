@@ -98,6 +98,7 @@ class X11InputPlugin final : public InputPlugin {
 public:
     explicit X11InputPlugin(X11DisplayPlugin& display) : display_(display) {}
     const char* name() const override { return "x11-keyboard"; }
+    PluginDependencies dependencies() const override { return {dependency_, 1}; }
     bool start() override { return display_.native_display() != nullptr; }
     bool poll(InputEvent& out) override {
         Display* native = display_.native_display();
@@ -123,6 +124,7 @@ public:
     }
 private:
     X11DisplayPlugin& display_;
+    const char* dependency_[1]{"x11-display"};
 };
 } // namespace
 
@@ -139,14 +141,16 @@ int main() {
     X11DisplayPlugin display;
     X11InputPlugin input(display);
     PluginRegistry plugins;
-    if (!plugins.add(display) || !plugins.add(input) || !plugins.start_all()) return 1;
+    if (!plugins.add(input) || !plugins.add(display) || !plugins.start_all()) return 1;
 
     while (!display.close_requested()) {
+        const auto now = now_ms();
+        plugins.tick_all(now);
         InputEvent event{};
         while (input.poll(event)) {
-            if (event.pressed) ui.handle(event.key, now_ms());
+            if (event.pressed) ui.handle(event.key, now);
         }
-        ui.render(canvas, now_ms());
+        ui.render(canvas, now);
         if (!display.present(canvas)) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }

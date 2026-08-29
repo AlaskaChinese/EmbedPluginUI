@@ -92,9 +92,9 @@ int main(int argc,char**argv){
     TerminalPage p5(ui, terminal);
 
     PluginRegistry plugins;
-    if (!plugins.add(display) || !plugins.add(input) || !plugins.add(system) || !plugins.add(terminal) ||
+    if (!plugins.add(display) || !plugins.add(input) ||
         !plugins.add(p1) || !plugins.add(p2) || !plugins.add(p3) || !plugins.add(p4) || !plugins.add(p5) ||
-        !plugins.start_all()) {
+        !plugins.add(system) || !plugins.add(terminal) || !plugins.start_all()) {
         std::fprintf(stderr,"Plugin startup failed\n");
         return 3;
     }
