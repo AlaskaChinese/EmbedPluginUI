@@ -119,7 +119,8 @@ const MenuItem display_items[] = {
 const Menu display_menu = make_menu("Display", display_items);
 
 // Deliberately longer than one 128x64 page. Labels vary in length so the demo
-// exercises cursor motion, width interpolation and smooth list scrolling.
+// exercises cursor motion, width interpolation, partial bottom-row rendering,
+// and smooth list scrolling.
 const MenuItem long_items[] = {
     MenuItem::action("Short", demo_action),
     MenuItem::action("Status", demo_action),
@@ -154,18 +155,17 @@ const Menu& demo_menu_root() {
 MenuStyle demo_menu_style() {
     MenuStyle style{};
 
-    // The frame is now 11 px high (one extra pixel above and below the old
-    // 9 px frame), so a 13 px row pitch preserves a clean 2 px gap.
+    // The frame is 11 px high. A 13 px row pitch keeps a clean 2 px gap and
+    // intentionally places row four at y=55 so the simulator demonstrates
+    // bottom-edge rendering instead of hiding the row prematurely.
     style.row_height = 13;
     style.visible_rows = 4;
 
-    // Symmetric padding between the frame and label/right-side indicator.
     style.content_inset_left = 8;
     style.content_inset_right = 8;
 
-    // Motion parameters intentionally follow the small U8g2 ui_run pattern:
-    // frame Y moves 5 px while far / 1 px near the target, frame width 10/1,
-    // and long-menu scrolling 4/1. All advance on a 16 ms logical tick.
+    // U8g2-style deterministic motion for Glide/Slide position, width and
+    // long-menu scrolling.
     style.glide_fit_content = true;
     style.glide_min_width = 28;
     style.glide_position_fast_step = 5;
@@ -176,14 +176,9 @@ MenuStyle demo_menu_style() {
     style.glide_scroll_slow_zone = 4;
     style.glide_tick_ms = 16;
 
-    // A restrained jelly kick keeps the clean glide/slide path but gives the
-    // frame body a short elastic lag and settle.
-    style.frame_jelly_kick = 2;
-    style.frame_jelly_max_stretch = 2;
-    style.frame_jelly_stiffness = 0.34f;
-    style.frame_jelly_damping = 0.28f;
-
-    // First-generation LiquidGlass: highlight only while the spring moves.
+    // One shared jelly model now drives Glide, Slide and Glass. Glide/Slide use
+    // their actual pixel-step velocity; Glass uses spring velocity. Glass adds
+    // the motion-only sheen, while the other two remain clean outlines.
     style.glass_sheen_height = 2;
     style.glass_max_stretch = 5;
     style.glass_stretch_per_velocity = 0.35f;
