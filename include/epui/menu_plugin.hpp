@@ -18,6 +18,7 @@ enum class MenuItemKind : std::uint8_t {
     Submenu,
     Toggle,
     Value,
+    Choice,
 };
 
 struct MenuItem {
@@ -31,6 +32,9 @@ struct MenuItem {
     int min_value{0};
     int max_value{100};
     int step{1};
+    const char* const* choice_options{nullptr};
+    std::size_t choice_count{0};
+    std::uint8_t* choice_index{nullptr};
 
     static constexpr MenuItem action(const char* label, MenuCallback callback = nullptr, void* user = nullptr) {
         MenuItem item{};
@@ -73,6 +77,21 @@ struct MenuItem {
         item.user = user;
         return item;
     }
+
+    template <std::size_t N>
+    static constexpr MenuItem choice(const char* label, std::uint8_t& index,
+                                     const char* const (&options)[N],
+                                     MenuCallback callback = nullptr, void* user = nullptr) {
+        MenuItem item{};
+        item.label = label;
+        item.kind = MenuItemKind::Choice;
+        item.choice_options = options;
+        item.choice_count = N;
+        item.choice_index = &index;
+        item.callback = callback;
+        item.user = user;
+        return item;
+    }
 };
 
 struct Menu {
@@ -89,8 +108,9 @@ constexpr Menu make_menu(const char* title, const MenuItem (&items)[N]) {
 enum class MenuSelectionStyle : std::uint8_t {
     Indicator,
     GlideFrame,
+    SlideFrame,
     // Backward-compatible source alias. The former liquid/metaball renderer
-    // has been removed; LiquidGlass now selects the clean GlideFrame motion.
+    // has been removed; LiquidGlass now maps to the clean GlideFrame motion.
     LiquidGlass = GlideFrame,
 };
 
@@ -120,8 +140,8 @@ struct MenuStyle {
 
     // GlideFrame follows the classic small-OLED two-speed approach: move
     // quickly while far from the target, then approach one pixel per logical
-    // tick. Frame position, frame width and long-menu scrolling are independent
-    // state variables that use the same motion language.
+    // tick. GlideFrame animates both position and content-fitted width.
+    // SlideFrame uses the same position/scroll motion but keeps full width.
     bool glide_fit_content{true};
     std::uint8_t glide_min_width{24};
     std::uint8_t glide_position_fast_step{5};
@@ -194,7 +214,7 @@ public:
 
     void set_selection_style(MenuSelectionStyle style) {
         style_.selection_style = style;
-        if (style == MenuSelectionStyle::GlideFrame) {
+        if (is_frame_style()) {
             glide_position_ = glide_position_target_;
             glide_scroll_position_ = glide_scroll_target_;
             glide_width_initialized_ = false;
@@ -268,6 +288,12 @@ public:
             case MenuItemKind::Value:
                 if (!item.int_value) return false;
                 editing_ = !editing_;
+                return true;
+            case MenuItemKind::Choice:
+                if (!item.choice_index || !item.choice_options || item.choice_count == 0) return false;
+                *item.choice_index = static_cast<std::uint8_t>(
+                    (static_cast<std::size_t>(*item.choice_index) + 1u) % item.choice_count);
+                if (item.callback) item.callback(item.user);
                 return true;
         }
         return false;
@@ -346,6 +372,11 @@ private:
     Frame& current_frame() { return frames_[depth_ - 1]; }
     const Frame& current_frame() const { return frames_[depth_ - 1]; }
 
+    bool is_frame_style() const {
+        return style_.selection_style == MenuSelectionStyle::GlideFrame
+            || style_.selection_style == MenuSelectionStyle::SlideFrame;
+    }
+
     int frame_x() const { return static_cast<int>(style_.glass_x); }
 
     int frame_max_width() const {
@@ -373,9 +404,7 @@ private:
     }
 
     int effective_scroll_position() const {
-        if (style_.selection_style == MenuSelectionStyle::GlideFrame) {
-            return glide_scroll_position_;
-        }
+        if (is_frame_style()) return glide_scroll_position_;
         return round_to_int(scroll_.position);
     }
 
@@ -439,7 +468,7 @@ private:
     }
 
     bool glide_active() const {
-        if (style_.selection_style != MenuSelectionStyle::GlideFrame) return false;
+        if (!is_frame_style()) return false;
         return glide_position_ != glide_position_target_
             || glide_width_ != glide_width_target_
             || glide_scroll_position_ != glide_scroll_target_;
@@ -487,6 +516,12 @@ private:
                     return value;
                 }
                 return nullptr;
+            case MenuItemKind::Choice:
+                if (item.choice_index && item.choice_options && item.choice_count > 0) {
+                    const std::size_t index = static_cast<std::size_t>(*item.choice_index) % item.choice_count;
+                    return item.choice_options[index];
+                }
+                return nullptr;
             case MenuItemKind::Action:
             default:
                 return nullptr;
@@ -504,6 +539,8 @@ private:
     }
 
     int target_frame_width_for_selected(Canvas& canvas) const {
+        if (style_.selection_style == MenuSelectionStyle::SlideFrame) return frame_max_width();
+
         const Frame& frame = current_frame();
         if (!frame.menu || frame.menu->count == 0 || frame.selected >= frame.menu->count) {
             return frame_max_width();
@@ -560,13 +597,14 @@ private:
     }
 
     void draw_selection(Canvas& canvas, int panel_x, int scroll) {
-        if (style_.selection_style == MenuSelectionStyle::GlideFrame) {
+        if (is_frame_style()) {
             const int y = static_cast<int>(style_.content_top) + glide_position_ - scroll;
             if (y < 13 || y > Canvas::Height - 9) return;
             const int height = std::max(5, static_cast<int>(style_.glass_height));
             const int radius = std::max(1, std::min(static_cast<int>(style_.glass_radius), height / 2));
-            canvas.round_rect(panel_x + frame_x(), y - 1,
-                              std::max(10, glide_width_), height, radius, true);
+            const int width = style_.selection_style == MenuSelectionStyle::SlideFrame
+                ? frame_max_width() : std::max(10, glide_width_);
+            canvas.round_rect(panel_x + frame_x(), y - 1, width, height, radius, true);
             return;
         }
 
