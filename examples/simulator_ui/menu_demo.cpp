@@ -10,7 +10,7 @@ bool fps_overlay = true;
 bool sleep_enabled = true;
 bool invert_enabled = false;
 bool soft_theme = true;
-bool glide_cursor = false;
+bool glide_cursor = true;
 int wifi_channel = 6;
 int log_level = 2;
 int brightness = 72;
@@ -30,6 +30,8 @@ void apply_cursor_style(void*) {
 void apply_fps_overlay(void*) {
     if (bound_fps) bound_fps->set_visible(fps_overlay);
 }
+
+void demo_action(void*) {}
 
 void reset_defaults(void*) {
     reset_demo_menu_state();
@@ -97,10 +99,28 @@ const MenuItem display_items[] = {
 };
 const Menu display_menu = make_menu("Display", display_items);
 
+// Deliberately longer than one 128x64 page. Labels vary in length so the
+// GlideFrame demo exercises Y movement, width interpolation and list scrolling
+// at the same time.
+const MenuItem long_items[] = {
+    MenuItem::action("Short", demo_action),
+    MenuItem::action("Status", demo_action),
+    MenuItem::action("Telemetry", demo_action),
+    MenuItem::action("Network Tools", demo_action),
+    MenuItem::action("Display Setup", demo_action),
+    MenuItem::action("Sensors", demo_action),
+    MenuItem::action("Power Monitor", demo_action),
+    MenuItem::action("Diagnostics", demo_action),
+    MenuItem::action("Storage", demo_action),
+    MenuItem::action("About Device", demo_action),
+};
+const Menu long_menu = make_menu("Long Menu", long_items);
+
 const MenuItem root_items[] = {
     MenuItem::submenu("System", system_menu),
     MenuItem::submenu("Network", network_menu),
     MenuItem::submenu("Display", display_menu),
+    MenuItem::submenu("Long Menu", long_menu),
     MenuItem::action("Reset Defaults", reset_defaults),
 };
 const Menu root_menu = make_menu("Jelly Menu", root_items);
@@ -114,8 +134,8 @@ const Menu& demo_menu_root() {
 MenuStyle demo_menu_style() {
     MenuStyle style{};
 
-    // Demo choice only. Without metaballs there is no need for the previous
-    // 12 px spacing; 11 px keeps the 9 px frame compact with a 2 px gap.
+    // Demo choice only: 11 px pitch keeps a 9 px frame compact while leaving
+    // a clean 2 px visual gap between neighboring rows.
     style.row_height = 11;
     style.visible_rows = 4;
 
@@ -123,14 +143,17 @@ MenuStyle demo_menu_style() {
     style.content_inset_left = 8;
     style.content_inset_right = 8;
 
-    // Motion parameters intentionally mirror the small U8g2 ui_run example:
-    // Y moves 5 px while far / 1 px near the target, width 10 px / 1 px.
+    // Motion parameters intentionally follow the small U8g2 ui_run pattern:
+    // frame Y moves 5 px while far / 1 px near the target, frame width 10/1,
+    // and long-menu scrolling 4/1. All advance on a 16 ms logical tick.
     style.glide_fit_content = true;
     style.glide_min_width = 28;
     style.glide_position_fast_step = 5;
     style.glide_position_slow_zone = 4;
     style.glide_width_fast_step = 10;
     style.glide_width_slow_zone = 5;
+    style.glide_scroll_fast_step = 4;
+    style.glide_scroll_slow_zone = 4;
     style.glide_tick_ms = 16;
     return style;
 }
@@ -153,7 +176,7 @@ void reset_demo_menu_state() {
     sleep_enabled = true;
     invert_enabled = false;
     soft_theme = true;
-    glide_cursor = false;
+    glide_cursor = true;
     wifi_channel = 6;
     log_level = 2;
     brightness = 72;
