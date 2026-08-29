@@ -107,7 +107,6 @@ struct MenuStyle {
     std::uint8_t glass_radius{4};
     std::uint8_t glass_sheen_height{2};
     std::uint8_t glass_max_stretch{5};
-    std::uint8_t glass_text_safe_padding_x{1};
     float glass_stretch_per_velocity{0.35f};
     float spring_stiffness{0.22f};
     float spring_damping{0.35f};
@@ -277,7 +276,6 @@ private:
     };
 
     static float absf(float value) { return value < 0.0f ? -value : value; }
-
     static int round_to_int(float value) {
         return static_cast<int>(value >= 0.0f ? value + 0.5f : value - 0.5f);
     }
@@ -371,30 +369,17 @@ private:
             return;
         }
 
-        const int selection_y = round_to_int(static_cast<float>(style_.content_top) + selection_.position - scroll_.position);
-        draw_selection(canvas, panel_x, selection_y);
-
         for (std::size_t i = 0; i < menu.count; ++i) {
             const float y_float = static_cast<float>(style_.content_top + i * style_.row_height) - scroll_.position;
             const int y = round_to_int(y_float);
             if (y < 13 || y > Canvas::Height - 10) continue;
             const MenuItem& item = menu.items[i];
-            draw_item_label(canvas, item, y, panel_x);
+            canvas.text(panel_x + style_.text_x, y, item.label ? item.label : "?");
             draw_item_value(canvas, item, y, i == frame.selected, panel_x);
         }
-    }
 
-    void clear_text_safe_region(Canvas& canvas, int x, int y, int width) const {
-        if (style_.selection_style != MenuSelectionStyle::LiquidGlass || width <= 0) return;
-        const int padding = static_cast<int>(style_.glass_text_safe_padding_x);
-        canvas.fill_rect(x - padding, y, width + padding * 2, 7, false);
-    }
-
-    void draw_item_label(Canvas& canvas, const MenuItem& item, int y, int panel_x) {
-        const char* label = item.label ? item.label : "?";
-        const int x = panel_x + static_cast<int>(style_.text_x);
-        clear_text_safe_region(canvas, x, y, canvas.text_width(label));
-        canvas.text(x, y, label);
+        const int selection_y = round_to_int(static_cast<float>(style_.content_top) + selection_.position - scroll_.position);
+        draw_selection(canvas, panel_x, selection_y);
     }
 
     void draw_selection(Canvas& canvas, int panel_x, int selection_y) {
@@ -463,9 +448,7 @@ private:
         if (!right) return;
         int x = Canvas::Width - style_.right_margin - canvas.text_width(right);
         if (x < static_cast<int>(style_.text_x) + 30) x = static_cast<int>(style_.text_x) + 30;
-        x += panel_x;
-        clear_text_safe_region(canvas, x, y, canvas.text_width(right));
-        canvas.text(x, y, right);
+        canvas.text(panel_x + x, y, right);
     }
 
     Ui& ui_;
