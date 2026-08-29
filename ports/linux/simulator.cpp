@@ -131,9 +131,9 @@ private:
 int main() {
     Canvas canvas;
     Ui ui;
-    openoledui::demo::HomePage home;
-    openoledui::demo::SensorPage sensors;
-    openoledui::demo::AboutPage about;
+    epui::demo::HomePage home;
+    epui::demo::SensorPage sensors;
+    epui::demo::AboutPage about;
     ui.add_page(home);
     ui.add_page(sensors);
     ui.add_page(about);

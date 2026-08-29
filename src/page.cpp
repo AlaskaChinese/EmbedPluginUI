@@ -1,7 +1,7 @@
-#include "openoledui/page.hpp"
+#include "epui/page.hpp"
 #include <algorithm>
 
-namespace openoledui {
+namespace epui {
 
 bool Ui::add_page(Page& page) {
     if (count_ >= MaxPages) return false;
@@ -41,4 +41,4 @@ void Ui::render(Canvas& canvas, std::uint32_t now_ms) {
     for (std::size_t i=0; i<count_; ++i, x+=4) { if (i == active) canvas.fill_rect(x, 61, 3, 2, true); else canvas.pixel(x+1, 62, true); }
 }
 
-} // namespace openoledui
+} // namespace epui
