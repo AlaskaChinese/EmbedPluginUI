@@ -51,7 +51,12 @@ endif()
 
 if(EPUI_BUILD_TESTS)
     enable_testing()
+
     add_executable(epui_plugin_registry_test tests/plugin_registry_test.cpp)
     target_link_libraries(epui_plugin_registry_test PRIVATE epui)
     add_test(NAME epui_plugin_registry COMMAND epui_plugin_registry_test)
+
+    add_executable(epui_public_api_test tests/public_api_test.cpp)
+    target_link_libraries(epui_public_api_test PRIVATE epui)
+    add_test(NAME epui_public_api COMMAND epui_public_api_test)
 endif()
