@@ -173,7 +173,28 @@ Once the spring settles, LiquidGlass becomes a plain full-width rounded frame wi
 
 ## Smooth scrolling beyond one page
 
-A menu can contain more items than `visible_rows`. GlideFrame and SlideFrame keep the two-speed list scroll path, while the visible selection frame springs around the **relative** item-minus-scroll target. The list therefore stays predictable while the cursor still rebounds naturally. Indicator and LiquidGlass use their spring scroll path.
+A menu longer than `visible_rows` now uses a **sticky viewport**, not a stateless `selected_index -> page` calculation. Each menu frame remembers `first_visible`.
+
+The rule is simple:
+
+```text
+new selection is still inside current viewport
+    -> keep scroll fixed
+    -> move only the cursor
+
+new selection crosses bottom edge
+    -> advance first_visible by one row
+    -> smoothly scroll content upward
+    -> keep cursor near the bottom slot
+
+new selection crosses top edge
+    -> move first_visible upward
+    -> smoothly scroll content downward
+```
+
+This fixes the common small-screen failure where moving from item 5 back to item 4 immediately drags the entire page downward. With a sticky viewport, item 4 is already visible, so the list remains where it is and the frame simply moves upward.
+
+GlideFrame and SlideFrame keep the deterministic two-speed list scroll path, while Indicator and LiquidGlass use their spring scroll path:
 
 ```cpp
 style.visible_rows = 4;
@@ -182,7 +203,17 @@ style.glide_scroll_fast_step = 4;
 style.glide_scroll_slow_zone = 4;
 ```
 
-The Ubuntu simulator contains both a root menu longer than one page and a dedicated ten-item `Long Menu`. With the demo's 13-pixel row pitch, the fourth row intentionally sits near the bottom edge so partial/bottom-edge rendering can be inspected directly.
+When moving downward at the bottom edge, the selected row can remain in the same on-screen slot while the list scrolls underneath it. Rounded-frame styles therefore get a small shared spring handoff so the key press still has visible cursor motion:
+
+```cpp
+style.scroll_handoff_kick = 2.0f;
+```
+
+The handoff uses the same `spring_stiffness` and `spring_damping` as the rest of the frame motion. Set it lower for a calmer edge transition or to `0.0f` if an application wants the cursor perfectly pinned while the content scrolls.
+
+`first_visible_index()` is exposed for diagnostics/tests when an application needs to inspect the active viewport.
+
+The Ubuntu simulator contains both a root menu longer than one page and a dedicated ten-item `Long Menu`. With the demo's 13-pixel row pitch, the fourth row intentionally sits near the bottom edge so partial rendering, downward edge handoff and upward sticky-window behavior can all be inspected directly.
 
 ## Ubuntu demo
 
@@ -192,4 +223,4 @@ The simulator exposes all four styles under:
 Jelly Menu -> Display -> Theme -> Cursor
 ```
 
-Press `Select` on `Cursor` to cycle through `Indicator`, `Glide`, `Slide` and `Glass`. The demo defaults to `Glide`, so the new spring-follow behavior is visible immediately.
+Press `Select` on `Cursor` to cycle through `Indicator`, `Glide`, `Slide` and `Glass`. The demo defaults to `Glide`, so the spring-follow and sticky long-menu behavior are visible immediately.
