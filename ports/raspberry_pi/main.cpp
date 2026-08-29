@@ -1,7 +1,6 @@
 #include "linux_i2c.hpp"
 #include "rpi_pages.hpp"
-#include "system_monitor.hpp"
-#include "terminal_feed.hpp"
+#include "rpi_plugins.hpp"
 #include "epui/canvas.hpp"
 #include "epui/input_plugin.hpp"
 #include "epui/oled.hpp"
@@ -75,32 +74,51 @@ int main(int argc,char**argv){
     const char* dev=argc>1?argv[1]:"/dev/i2c-1";
     const int address=argc>2?std::strtol(argv[2],nullptr,0):0x3C;
     const bool sh1106=argc>3&&std::string(argv[3])=="sh1106";
+
     LinuxI2cTransport bus(dev,static_cast<std::uint8_t>(address));
     if(!bus.open_bus()){std::perror("Open I2C");return 2;}
+
+    Canvas canvas;
+    Ui ui;
     Oled128x64 oled(bus,sh1106?OledController::SH1106:OledController::SSD1306);
     OledDisplayPlugin display(oled, sh1106 ? "sh1106-display" : "ssd1306-display");
     TerminalInputPlugin input;
+    SystemMonitorPlugin system;
+    TerminalFeedPlugin terminal;
+    OverviewPage p1(ui, system);
+    NetworkPage p2(ui, system);
+    PowerPage p3(ui, system);
+    SystemPage p4(ui, system);
+    TerminalPage p5(ui, terminal);
+
     PluginRegistry plugins;
-    if (!plugins.add(display) || !plugins.add(input) || !plugins.start_all()) {
+    if (!plugins.add(display) || !plugins.add(input) || !plugins.add(system) || !plugins.add(terminal) ||
+        !plugins.add(p1) || !plugins.add(p2) || !plugins.add(p3) || !plugins.add(p4) || !plugins.add(p5) ||
+        !plugins.start_all()) {
         std::fprintf(stderr,"Plugin startup failed\n");
         return 3;
     }
 
-    Canvas canvas;Ui ui;SystemMonitor monitor;StatusSnapshot status=monitor.sample();TerminalFeed terminal;terminal.open_feed();
-    OverviewPage p1(status);NetworkPage p2(status);PowerPage p3(status);SystemPage p4(status);TerminalPage p5(terminal);
-    ui.add_page(p1);ui.add_page(p2);ui.add_page(p3);ui.add_page(p4);ui.add_page(p5);
-    std::uint32_t last=0;
-    std::fprintf(stderr,"EmbedPluginUI Pi5 running. a/left=prev, d/right=next, q=quit. FIFO: %s\n",terminal.path().c_str());
+    std::fprintf(stderr,"EmbedPluginUI Pi5 running. plugins=%zu, a/left=prev, d/right=next, q=quit. FIFO: %s\n",
+                 plugins.size(), terminal.feed().path().c_str());
+
     while(!input.quit_requested()){
         const std::uint32_t now=now_ms();
-        if(now-last>=1000){status=monitor.sample();last=now;}
-        terminal.poll();
+        plugins.tick_all(now);
+
         InputEvent event{};
-        while(input.poll(event)){if(event.pressed)ui.handle(event.key,now);}
+        while(input.poll(event)) {
+            if(event.pressed) ui.handle(event.key,now);
+        }
+
         ui.render(canvas,now);
-        if(!display.present(canvas)){std::fprintf(stderr,"OLED write failed\n");break;}
+        if(!display.present(canvas)){
+            std::fprintf(stderr,"OLED write failed\n");
+            break;
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
+
     plugins.stop_all();
     return 0;
 }
