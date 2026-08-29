@@ -19,6 +19,7 @@ class Ui {
 public:
     static constexpr std::size_t MaxPages = 8;
     bool add_page(Page& page);
+    bool remove_page(Page& page);
     void handle(Key key, std::uint32_t now_ms);
     void render(Canvas& canvas, std::uint32_t now_ms);
     std::size_t page_index() const { return current_; }
