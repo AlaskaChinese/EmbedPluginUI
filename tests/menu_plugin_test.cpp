@@ -7,6 +7,8 @@ namespace {
 bool toggle_value = false;
 int numeric_value = 5;
 int actions = 0;
+std::uint8_t choice_index = 0;
+const char* const choice_options[] = {"One", "Two", "Three"};
 
 void action(void*) { ++actions; }
 
@@ -38,6 +40,22 @@ const epui::MenuItem root_items[] = {
 };
 const epui::Menu root = epui::make_menu("Root", root_items);
 
+const epui::MenuItem choice_items[] = {
+    epui::MenuItem::choice("Mode", choice_index, choice_options),
+};
+const epui::Menu choice_menu = epui::make_menu("Choice", choice_items);
+
+const epui::MenuItem long_items[] = {
+    epui::MenuItem::action("One"),
+    epui::MenuItem::action("Two"),
+    epui::MenuItem::action("Three"),
+    epui::MenuItem::action("Four"),
+    epui::MenuItem::action("Five"),
+    epui::MenuItem::action("Six"),
+    epui::MenuItem::action("Seven"),
+};
+const epui::Menu long_menu = epui::make_menu("Long", long_items);
+
 } // namespace
 
 int main() {
@@ -50,6 +68,10 @@ int main() {
     assert(pixel_on(invert_canvas, 5, 5));
     assert(!pixel_on(invert_canvas, 4, 4));
 
+    static_assert(static_cast<unsigned>(epui::MenuSelectionStyle::LiquidGlass)
+                  == static_cast<unsigned>(epui::MenuSelectionStyle::GlideFrame),
+                  "LiquidGlass must remain a source-compatible GlideFrame alias");
+
     epui::Ui ui;
     epui::MenuPagePlugin<8> menu(ui, root, "test-menu");
     assert(menu.kind() == epui::PluginKind::Menu);
@@ -61,13 +83,19 @@ int main() {
 
     epui::Canvas indicator_canvas;
     menu.draw(indicator_canvas, 0);
-    menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
-    assert(menu.selection_style() == epui::MenuSelectionStyle::LiquidGlass);
-    epui::Canvas glass_canvas;
-    menu.draw(glass_canvas, 16);
-    assert(std::memcmp(indicator_canvas.data(), glass_canvas.data(), epui::Canvas::BufferSize) != 0);
-    menu.set_selection_style(epui::MenuSelectionStyle::Indicator);
 
+    menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
+    epui::Canvas glide_canvas;
+    menu.draw(glide_canvas, 16);
+    assert(std::memcmp(indicator_canvas.data(), glide_canvas.data(), epui::Canvas::BufferSize) != 0);
+
+    menu.set_selection_style(epui::MenuSelectionStyle::SlideFrame);
+    epui::Canvas slide_canvas;
+    menu.draw(slide_canvas, 32);
+    assert(std::memcmp(indicator_canvas.data(), slide_canvas.data(), epui::Canvas::BufferSize) != 0);
+    assert(menu.glide_target_width() == static_cast<int>(menu.style().glass_width));
+
+    menu.set_selection_style(epui::MenuSelectionStyle::Indicator);
     menu.on_key(epui::Key::Select);
     assert(menu.depth() == 2);
     menu.on_key(epui::Key::Select);
@@ -100,25 +128,105 @@ int main() {
     menu.on_key(epui::Key::Select);
     assert(actions == 2);
 
+    // Indicator keeps the original damped-spring overshoot.
     menu.reset_to_root(true);
     epui::Canvas canvas;
-    menu.draw(canvas, 32);
+    menu.draw(canvas, 48);
     menu.on_key(epui::Key::Next);
     float maximum = menu.selection_position();
-    for (std::uint32_t t = 48; t <= 672; t += 16) {
+    for (std::uint32_t t = 64; t <= 688; t += 16) {
         menu.draw(canvas, t);
         if (menu.selection_position() > maximum) maximum = menu.selection_position();
     }
     assert(maximum > static_cast<float>(menu.style().row_height) + 0.5f);
-    assert(!menu.jelly_active());
 
+    // GlideFrame follows the U8g2-style two-speed approach with no overshoot.
     menu.reset_to_root(true);
-    menu.set_selection_style(epui::MenuSelectionStyle::LiquidGlass);
-    menu.draw(canvas, 688);
+    menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
+    menu.draw(canvas, 704);
+    assert(menu.glide_position() == 0);
     menu.on_key(epui::Key::Next);
-    assert(menu.jelly_active());
-    for (std::uint32_t t = 704; t <= 1328; t += 16) menu.draw(canvas, t);
-    assert(!menu.jelly_active());
+    assert(menu.glide_target_position() == static_cast<int>(menu.style().row_height));
+    menu.draw(canvas, 720);
+    assert(menu.glide_position() == 5);
+    menu.draw(canvas, 736);
+    assert(menu.glide_position() == static_cast<int>(menu.style().row_height));
+
+    // Width changes independently for GlideFrame.
+    menu.reset_to_root(true);
+    menu.set_selection_style(epui::MenuSelectionStyle::GlideFrame);
+    menu.draw(canvas, 752);
+    const int full_width = menu.glide_width();
+    menu.on_key(epui::Key::Next);
+    menu.on_key(epui::Key::Next);
+    menu.on_key(epui::Key::Next);
+    menu.draw(canvas, 768);
+    assert(menu.glide_target_width() < full_width);
+    int previous_width = menu.glide_width();
+    for (std::uint32_t t = 784; t <= 1200; t += 16) {
+        menu.draw(canvas, t);
+        assert(menu.glide_width() <= previous_width);
+        assert(menu.glide_width() >= menu.glide_target_width());
+        previous_width = menu.glide_width();
+    }
+    assert(menu.glide_width() == menu.glide_target_width());
+
+    // Choice is a reusable enum-style menu item.
+    epui::Ui choice_ui;
+    epui::MenuPagePlugin<4> choice_page(choice_ui, choice_menu, "choice-menu");
+    assert(choice_page.start());
+    assert(choice_index == 0);
+    assert(choice_page.activate_selected());
+    assert(choice_index == 1);
+    assert(choice_page.activate_selected());
+    assert(choice_index == 2);
+    assert(choice_page.activate_selected());
+    assert(choice_index == 0);
+    choice_page.stop();
+
+    // A menu longer than the viewport must scroll gradually instead of jumping.
+    epui::MenuStyle long_style{};
+    long_style.selection_style = epui::MenuSelectionStyle::GlideFrame;
+    long_style.visible_rows = 4;
+    long_style.row_height = 10;
+    long_style.glide_tick_ms = 16;
+    long_style.glide_scroll_fast_step = 4;
+    long_style.glide_scroll_slow_zone = 4;
+    epui::Ui long_ui;
+    epui::MenuPagePlugin<4> long_page(long_ui, long_menu, "long-menu", long_style);
+    assert(long_page.start());
+    epui::Canvas long_canvas;
+    std::uint32_t now = 0;
+    long_page.draw(long_canvas, now);
+
+    // Settle on row four while the list is still unscrolled.
+    for (int i = 0; i < 3; ++i) {
+        long_page.on_key(epui::Key::Next);
+        now += 16;
+        long_page.draw(long_canvas, now);
+        now += 16;
+        long_page.draw(long_canvas, now);
+    }
+    assert(long_page.selected_index() == 3);
+    assert(long_page.glide_scroll_position() == 0);
+
+    // Moving to row five requests one row of scroll, but reaches it over
+    // several frames: 0 -> 4 -> 8 -> 9 -> 10.
+    long_page.on_key(epui::Key::Next);
+    assert(long_page.glide_scroll_target() == 10);
+    now += 16;
+    long_page.draw(long_canvas, now);
+    assert(long_page.glide_scroll_position() == 4);
+    now += 16;
+    long_page.draw(long_canvas, now);
+    assert(long_page.glide_scroll_position() == 8);
+    now += 16;
+    long_page.draw(long_canvas, now);
+    assert(long_page.glide_scroll_position() == 9);
+    now += 16;
+    long_page.draw(long_canvas, now);
+    assert(long_page.glide_scroll_position() == 10);
+    long_page.stop();
 
     menu.reset_to_root(true);
     menu.on_key(epui::Key::Back);
