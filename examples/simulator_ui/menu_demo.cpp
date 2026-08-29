@@ -111,6 +111,30 @@ const Menu& demo_menu_root() {
     return root_menu;
 }
 
+MenuStyle demo_menu_style() {
+    MenuStyle style{};
+
+    // Demo choice, not a framework requirement: a 12 px row pitch leaves a
+    // visible 3 px gap around the 9 px capsule, which gives the metaball neck
+    // enough room to form between adjacent menu rows.
+    style.row_height = 12;
+    style.visible_rows = 4;
+
+    // Keep the text and right-side value/arrow equally inset from the resting
+    // capsule border. Applications can tune these independently.
+    style.content_inset_left = 8;
+    style.content_inset_right = 8;
+
+    style.liquid_metaball_radius = 3;
+    style.liquid_bridge_width = 1;
+    style.liquid_bridge_max_span = 16;
+    style.liquid_refraction_radius = 4;
+    style.liquid_highlight_min = 5;
+    style.liquid_highlight_max = 14;
+    style.liquid_dither_trail = false;
+    return style;
+}
+
 void bind_demo_menu(MenuPagePlugin<12>* menu) {
     bound_menu = menu;
     apply_cursor_style(nullptr);
