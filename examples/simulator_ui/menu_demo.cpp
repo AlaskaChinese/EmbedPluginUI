@@ -9,12 +9,21 @@ bool debug_enabled = false;
 bool sleep_enabled = true;
 bool invert_enabled = false;
 bool soft_theme = true;
+bool glass_cursor = false;
 int wifi_channel = 6;
 int log_level = 2;
 int brightness = 72;
 int contrast = 205;
 int radius = 4;
 int battery_warn = 20;
+MenuPagePlugin<12>* bound_menu = nullptr;
+
+void apply_cursor_style(void*) {
+    if (!bound_menu) return;
+    bound_menu->set_selection_style(glass_cursor
+        ? MenuSelectionStyle::LiquidGlass
+        : MenuSelectionStyle::Indicator);
+}
 
 void reset_defaults(void*) {
     reset_demo_menu_state();
@@ -66,6 +75,7 @@ const Menu oled_menu = make_menu("OLED", oled_items);
 const MenuItem theme_items[] = {
     MenuItem::toggle("Soft", soft_theme),
     MenuItem::value("Radius", radius, 0, 8),
+    MenuItem::toggle("Glass Cursor", glass_cursor, apply_cursor_style),
 };
 const Menu theme_menu = make_menu("Theme", theme_items);
 
@@ -89,6 +99,11 @@ const Menu& demo_menu_root() {
     return root_menu;
 }
 
+void bind_demo_menu(MenuPagePlugin<12>* menu) {
+    bound_menu = menu;
+    apply_cursor_style(nullptr);
+}
+
 void reset_demo_menu_state() {
     wifi_enabled = true;
     dhcp_enabled = true;
@@ -96,12 +111,14 @@ void reset_demo_menu_state() {
     sleep_enabled = true;
     invert_enabled = false;
     soft_theme = true;
+    glass_cursor = false;
     wifi_channel = 6;
     log_level = 2;
     brightness = 72;
     contrast = 205;
     radius = 4;
     battery_warn = 20;
+    apply_cursor_style(nullptr);
 }
 
 } // namespace epui::demo

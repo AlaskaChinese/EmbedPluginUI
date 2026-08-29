@@ -16,6 +16,20 @@ public:
     void set_origin(int x, int y);
     void reset_origin();
     void pixel(int x, int y, bool on = true);
+    void invert_pixel(int x, int y) {
+        x += origin_x_;
+        y += origin_y_;
+        if (x < 0 || x >= Width || y < 0 || y >= Height) return;
+        const std::size_t i = static_cast<std::size_t>(x + (y / 8) * Width);
+        const std::uint8_t mask = static_cast<std::uint8_t>(1u << (y & 7));
+        buffer_[i] ^= mask;
+    }
+    void invert_rect(int x, int y, int w, int h) {
+        if (w <= 0 || h <= 0) return;
+        for (int yy = 0; yy < h; ++yy) {
+            for (int xx = 0; xx < w; ++xx) invert_pixel(x + xx, y + yy);
+        }
+    }
     void line(int x0, int y0, int x1, int y1, bool on = true);
     void rect(int x, int y, int w, int h, bool on = true);
     void fill_rect(int x, int y, int w, int h, bool on = true);
