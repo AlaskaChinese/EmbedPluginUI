@@ -11,6 +11,7 @@ SimulatorUi::SimulatorUi()
     bind_demo_menu(&menu_);
     bind_demo_diagnostics(&diagnostics_);
     menu_.start();
+    ui_.add_page(terminal_);
     diagnostics_.start();
 }
 

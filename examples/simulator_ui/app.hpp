@@ -9,6 +9,7 @@
 #include "home_page.hpp"
 #include "menu_demo.hpp"
 #include "sensor_page.hpp"
+#include "terminal_page.hpp"
 
 namespace epui::demo {
 
@@ -22,6 +23,7 @@ public:
     Ui& ui() { return ui_; }
     const Ui& ui() const { return ui_; }
     MenuPagePlugin<12>& menu() { return menu_; }
+    TerminalDemoPage& terminal() { return terminal_; }
     DiagnosticsPlugin& diagnostics() { return diagnostics_; }
     const DiagnosticsPlugin& diagnostics() const { return diagnostics_; }
 
@@ -36,6 +38,7 @@ private:
     SensorPage sensors_;
     AboutPage about_;
     MenuPagePlugin<12> menu_;
+    TerminalDemoPage terminal_;
     DiagnosticsPlugin diagnostics_;
 };
 

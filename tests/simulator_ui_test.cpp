@@ -1,6 +1,8 @@
 #include "app.hpp"
+#include "epui/input_plugin.hpp"
 #include <cassert>
 #include <cstdint>
+#include <string>
 
 namespace {
 
@@ -26,7 +28,7 @@ int main() {
     auto& menu = app.menu();
     std::uint32_t now = 0;
 
-    assert(ui.page_count() == 4);
+    assert(ui.page_count() == 5);
     assert(ui.page_index() == 0);
 
     // The top-level menu page is intentionally passive until Enter/Select.
@@ -52,10 +54,23 @@ int main() {
     assert(!ui.animating());
     assert(ui.page_index() == 3);
 
-    // Back at the root releases focus. Next returns to top-level page motion.
+    // Back at the root releases focus. Next moves to the terminal demo.
     ui.handle(epui::Key::Back, now);
     assert(!menu.focused());
     assert(!menu.captures_key(epui::Key::Next));
+    ui.handle(epui::Key::Next, now);
+    assert(ui.animating());
+    settle_transition(app, now);
+    assert(ui.page_index() == 4);
+
+    auto& terminal = app.terminal();
+    ui.handle(epui::Key::Select, now);
+    assert(terminal.focused());
+    ui.handle(epui::InputEvent{epui::Key::Select, true, 'h'}, now);
+    ui.handle(epui::InputEvent{epui::Key::Select, true, 'i'}, now);
+    assert(std::string(terminal.view().line(terminal.view().line_count() - 1)) == "$ hi");
+    ui.handle(epui::Key::Back, now);
+    assert(!terminal.focused());
     ui.handle(epui::Key::Next, now);
     assert(ui.animating());
     settle_transition(app, now);

@@ -20,11 +20,13 @@ set(EPUI_SIM_UI_SOURCES
     examples/simulator_ui/sensor_page.cpp
     examples/simulator_ui/about_page.cpp
     examples/simulator_ui/menu_demo.cpp
+    examples/simulator_ui/terminal_page.cpp
 )
 
 option(EPUI_BUILD_WINDOWS_SIM "Build the Win32 OLED simulator" ON)
 option(EPUI_BUILD_LINUX_SIM "Build the Linux/X11 OLED simulator" ON)
 option(EPUI_BUILD_RPI "Build the Raspberry Pi 5 application" OFF)
+option(EPUI_BUILD_RPI_SIM "Build the Raspberry Pi 5 application in the X11 simulator" ON)
 option(EPUI_BUILD_TESTS "Build EmbedPluginUI tests" ON)
 
 if(WIN32 AND EPUI_BUILD_WINDOWS_SIM)
@@ -36,30 +38,29 @@ if(WIN32 AND EPUI_BUILD_WINDOWS_SIM)
     target_include_directories(epui_sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/examples/simulator_ui)
 endif()
 
-if(UNIX AND NOT APPLE AND EPUI_BUILD_LINUX_SIM)
+if(UNIX AND NOT APPLE AND (EPUI_BUILD_LINUX_SIM OR EPUI_BUILD_RPI_SIM))
     find_package(X11 QUIET)
+endif()
+
+if(UNIX AND NOT APPLE AND EPUI_BUILD_LINUX_SIM)
     if(X11_FOUND)
         add_executable(epui_sim
             ports/linux/simulator.cpp
+            ports/linux/x11_simulator.cpp
             ${EPUI_SIM_UI_SOURCES}
         )
         target_link_libraries(epui_sim PRIVATE epui X11::X11)
-        target_include_directories(epui_sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/examples/simulator_ui)
+        target_include_directories(epui_sim PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/simulator_ui
+            ${CMAKE_CURRENT_SOURCE_DIR}/ports/linux
+        )
     else()
         message(WARNING "X11 development headers were not found; epui_sim will not be built. On Ubuntu 22.04: sudo apt install libx11-dev")
     endif()
 endif()
 
-if(UNIX AND NOT APPLE AND EPUI_BUILD_RPI)
-    add_executable(epui_rpi
-        ports/raspberry_pi/main.cpp
-        ports/raspberry_pi/linux_i2c.cpp
-        ports/raspberry_pi/system_monitor.cpp
-        ports/raspberry_pi/rpi_pages.cpp
-        ports/raspberry_pi/terminal_feed.cpp
-    )
-    target_link_libraries(epui_rpi PRIVATE epui)
-    target_include_directories(epui_rpi PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ports/raspberry_pi)
+if(UNIX AND NOT APPLE AND (EPUI_BUILD_RPI OR EPUI_BUILD_RPI_SIM))
+    add_subdirectory(apps/rpi5_oled_console)
 endif()
 
 if(EPUI_BUILD_TESTS)
@@ -100,4 +101,33 @@ if(EPUI_BUILD_TESTS)
     add_executable(epui_public_api_test tests/public_api_test.cpp)
     target_link_libraries(epui_public_api_test PRIVATE epui)
     add_test(NAME epui_public_api COMMAND epui_public_api_test)
+
+    add_executable(epui_terminal_view_test tests/terminal_view_test.cpp)
+    target_link_libraries(epui_terminal_view_test PRIVATE epui)
+    add_test(NAME epui_terminal_view COMMAND epui_terminal_view_test)
+
+    if(UNIX AND NOT APPLE)
+        add_executable(epui_pty_session_test
+            tests/pty_session_test.cpp
+            ports/raspberry_pi/pty_session.cpp
+        )
+        target_link_libraries(epui_pty_session_test PRIVATE epui)
+        target_include_directories(epui_pty_session_test PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/ports/raspberry_pi
+        )
+        add_test(NAME epui_pty_session COMMAND epui_pty_session_test)
+
+        add_executable(epui_rpi_terminal_page_test
+            tests/rpi_terminal_page_test.cpp
+            apps/rpi5_oled_console/pages.cpp
+            ports/raspberry_pi/pty_session.cpp
+            ports/raspberry_pi/system_monitor.cpp
+        )
+        target_link_libraries(epui_rpi_terminal_page_test PRIVATE epui)
+        target_include_directories(epui_rpi_terminal_page_test PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/apps/rpi5_oled_console
+            ${CMAKE_CURRENT_SOURCE_DIR}/ports/raspberry_pi
+        )
+        add_test(NAME epui_rpi_terminal_page COMMAND epui_rpi_terminal_page_test)
+    endif()
 endif()

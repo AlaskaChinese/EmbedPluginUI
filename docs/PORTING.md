@@ -20,6 +20,20 @@ epui::Oled128x64 oled(bus, epui::OledController::SSD1306);
 oled.init();
 ```
 
-Translate platform input into `epui::Key::Next`, `Prev`, `Select` and `Back`, then call `epui::Ui::handle()`.
+Translate navigation into `epui::Key::Next`, `Prev`, `Select` and `Back`.
+Text-oriented ports can map explicit viewport actions to `ScrollUp` and
+`ScrollDown`; for example, the Raspberry Pi keyboard maps Ctrl+Up/Down.
+Text-capable inputs set `InputEvent::ch`; key events leave it as zero. Always
+overwrite the complete event before returning it from `InputPlugin::poll()`.
+
+```cpp
+epui::InputEvent event{};
+while (input.poll(event)) ui.handle(event, now_ms);
+```
+
+Release events are ignored by `Ui`. Character input goes directly to the
+current stable page through `Page::on_char()` and does not use
+`captures_key()`. Pages that accept text should gate `on_char()` with their own
+focus state.
 
 A 30 FPS loop is a good MCU default. The Ubuntu/Windows simulators target roughly 60 FPS for animation development.

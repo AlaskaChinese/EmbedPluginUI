@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <limits>
 #include "app.hpp"
+#include "epui/input_plugin.hpp"
 
 using namespace epui;
 
@@ -39,18 +40,32 @@ bool process_memory_probe(void*, DebugMemoryStats& out) {
 }
 
 void handle_key(WPARAM key) {
+    InputEvent event{};
     switch (key) {
-    case VK_RIGHT:
+    case VK_RIGHT: event.key = Key::Next; break;
+    case VK_LEFT: event.key = Key::Prev; break;
     case VK_DOWN:
-    case 'D': g_app.ui().handle(Key::Next, now_ms()); break;
-    case VK_LEFT:
+        if ((GetKeyState(VK_CONTROL) & 0x8000) == 0) return;
+        event.key = Key::ScrollDown;
+        break;
     case VK_UP:
-    case 'A': g_app.ui().handle(Key::Prev, now_ms()); break;
-    case VK_RETURN:
-    case VK_SPACE: g_app.ui().handle(Key::Select, now_ms()); break;
-    case VK_ESCAPE: g_app.ui().handle(Key::Back, now_ms()); break;
-    default: break;
+        if ((GetKeyState(VK_CONTROL) & 0x8000) == 0) return;
+        event.key = Key::ScrollUp;
+        break;
+    case VK_RETURN: event.key = Key::Select; break;
+    case VK_ESCAPE: event.key = Key::Back; break;
+    default: return;
     }
+    g_app.ui().handle(event, now_ms());
+}
+
+void handle_char(WPARAM value) {
+    if (value == 0 || value > 0x7e) return;
+    const char ch = static_cast<char>(value);
+    if (ch == '\r' || ch == 0x1b) return;
+    InputEvent event{};
+    event.ch = ch;
+    g_app.ui().handle(event, now_ms());
 }
 
 void paint(HWND hwnd) {
@@ -80,20 +95,31 @@ void paint(HWND hwnd) {
     HBRUSH pixel = CreateSolidBrush(RGB(229, 242, 255));
     const std::uint8_t* fb = g_app.canvas().data();
     for (int y = 0; y < Canvas::Height; ++y) {
-        for (int x = 0; x < Canvas::Width; ++x) {
+        int x = 0;
+        while (x < Canvas::Width) {
             const std::size_t i = static_cast<std::size_t>(x + (y / 8) * Canvas::Width);
-            if (((fb[i] >> (y & 7)) & 1u) != 0u) {
-                RECT r{kPad + x * kScale, kPad + y * kScale,
-                       kPad + (x + 1) * kScale, kPad + (y + 1) * kScale};
-                FillRect(mem, &r, pixel);
+            if (((fb[i] >> (y & 7)) & 1u) == 0u) {
+                ++x;
+                continue;
             }
+            const int begin = x;
+            do {
+                ++x;
+                if (x >= Canvas::Width) break;
+                const std::size_t next = static_cast<std::size_t>(
+                    x + (y / 8) * Canvas::Width);
+                if (((fb[next] >> (y & 7)) & 1u) == 0u) break;
+            } while (true);
+            RECT r{kPad + begin * kScale, kPad + y * kScale,
+                   kPad + x * kScale, kPad + (y + 1) * kScale};
+            FillRect(mem, &r, pixel);
         }
     }
     DeleteObject(pixel);
 
     SetBkMode(mem, TRANSPARENT);
     SetTextColor(mem, RGB(165, 173, 184));
-    const char* hint = "A/D or arrows: move/page   Enter: select   Esc: back/unfocus";
+    const char* hint = "Left/Right: move/edit   Ctrl+Up/Down: output page   Enter: run";
     TextOutA(mem, kPad, kClientH - 16, hint, lstrlenA(hint));
     BitBlt(hdc, 0, 0, client.right, client.bottom, mem, 0, 0, SRCCOPY);
     g_app.diagnostics().record_transfer(elapsed_us(transfer_begin, Clock::now()),
@@ -110,6 +136,7 @@ LRESULT CALLBACK proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CREATE: SetTimer(hwnd, 1, 16, nullptr); return 0;
     case WM_TIMER: InvalidateRect(hwnd, nullptr, FALSE); return 0;
     case WM_KEYDOWN: handle_key(wp); InvalidateRect(hwnd, nullptr, FALSE); return 0;
+    case WM_CHAR: handle_char(wp); InvalidateRect(hwnd, nullptr, FALSE); return 0;
     case WM_PAINT: paint(hwnd); return 0;
     case WM_DESTROY: KillTimer(hwnd, 1); PostQuitMessage(0); return 0;
     default: return DefWindowProc(hwnd, msg, wp, lp);
