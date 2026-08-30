@@ -34,6 +34,7 @@ public:
 
 protected:
     virtual bool sample(Snapshot& out, std::uint32_t now_ms) = 0;
+    void reset_schedule() { sampled_once_ = false; }
 
 private:
     Snapshot snapshot_{};

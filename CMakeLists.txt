@@ -129,5 +129,15 @@ if(EPUI_BUILD_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/ports/raspberry_pi
         )
         add_test(NAME epui_rpi_terminal_page COMMAND epui_rpi_terminal_page_test)
+
+        add_executable(epui_system_monitor_test
+            tests/system_monitor_test.cpp
+            ports/raspberry_pi/system_monitor.cpp
+        )
+        target_link_libraries(epui_system_monitor_test PRIVATE epui)
+        target_include_directories(epui_system_monitor_test PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/ports/raspberry_pi
+        )
+        add_test(NAME epui_system_monitor COMMAND epui_system_monitor_test)
     endif()
 endif()

@@ -13,9 +13,10 @@ void format_value(char* buffer, std::size_t size, float value,
     else std::snprintf(buffer, size, "%.0f%s", value, suffix);
 }
 
-void draw_key_value(epui::Canvas& canvas, int y, const char* key, const char* value) {
+void draw_key_value(epui::Canvas& canvas, int y, const char* key, const char* value,
+                    int value_x = 48) {
     canvas.text(3, y, key);
-    canvas.text(48, y, value);
+    canvas.text(value_x, y, value);
 }
 
 } // namespace
@@ -37,14 +38,13 @@ void OverviewPage::draw(epui::Canvas& canvas, std::uint32_t) {
 void NetworkPage::draw(epui::Canvas& canvas, std::uint32_t) {
     const auto& status = system_.snapshot();
     epui::draw_header(canvas, "Network", 2, 5);
-    epui::draw_wifi_icon(canvas, 107, 18, 3);
-    draw_key_value(canvas, 17, "IF", status.interface.c_str());
-    draw_key_value(canvas, 27, "IP", status.ipv4.c_str());
+    draw_key_value(canvas, 14, "IF", status.interface.c_str(), 31);
+    draw_key_value(canvas, 24, "IP", status.ipv4.c_str(), 31);
     char buffer[24];
     std::snprintf(buffer, sizeof(buffer), "%.1f KiB/s", status.rx_kib_s);
-    draw_key_value(canvas, 37, "RX", buffer);
+    draw_key_value(canvas, 34, "RX", buffer, 31);
     std::snprintf(buffer, sizeof(buffer), "%.1f KiB/s", status.tx_kib_s);
-    draw_key_value(canvas, 47, "TX", buffer);
+    draw_key_value(canvas, 44, "TX", buffer, 31);
 }
 
 void PowerPage::draw(epui::Canvas& canvas, std::uint32_t now_ms) {

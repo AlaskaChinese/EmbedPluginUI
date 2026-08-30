@@ -37,10 +37,12 @@ Ctrl+Down moves one page toward the latest output, Ctrl-C interrupts the
 foreground command, and Esc returns to page navigation. Close the window to
 stop the simulator and its shell.
 
-The desktop simulator is capped at about 30 FPS to match the OLED application,
-and its X11 renderer batches adjacent lit pixels. On Raspberry Pi, identical
-frames are not written to I2C repeatedly; cursor blinking and changing status
-data still refresh normally.
+The desktop simulator targets about 60 FPS with deadline-based frame pacing,
+and its X11 renderer batches adjacent lit pixels. The status monitor samples
+only the currently visible stable page and pauses sampling during page
+transitions. On Raspberry Pi, the loop targets 30 FPS and identical frames are
+not written to I2C repeatedly; cursor blinking and changing status data still
+refresh normally.
 
 The simulator samples the development computer, so network/IP/load values are
 real desktop values. Raspberry Pi-only PMIC readings, and sometimes the Pi

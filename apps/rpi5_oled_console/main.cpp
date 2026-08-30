@@ -23,6 +23,8 @@ using namespace epui::rpi::console;
 
 namespace {
 
+using Clock = std::chrono::steady_clock;
+
 volatile std::sig_atomic_t stop_requested = 0;
 
 void request_stop(int) { stop_requested = 1; }
@@ -30,7 +32,18 @@ void request_stop(int) { stop_requested = 1; }
 std::uint32_t now_ms() {
     using namespace std::chrono;
     return static_cast<std::uint32_t>(
-        duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+        duration_cast<milliseconds>(Clock::now().time_since_epoch()).count());
+}
+
+StatusSection active_section(const Ui& ui) {
+    if (ui.animating()) return StatusSection::Inactive;
+    switch (ui.page_index()) {
+    case 0: return StatusSection::Overview;
+    case 1: return StatusSection::Network;
+    case 2: return StatusSection::Power;
+    case 3: return StatusSection::System;
+    default: return StatusSection::Inactive;
+    }
 }
 
 } // namespace
@@ -82,12 +95,14 @@ int main(int argc, char** argv) {
 
     std::array<std::uint8_t, Canvas::BufferSize> previous_frame{};
     bool frame_presented = false;
+    auto next_frame = Clock::now();
     while (!stop_requested) {
         const std::uint32_t now = now_ms();
-        plugins.tick_all(now);
 
         InputEvent event{};
         while (input.poll(event)) ui.handle(event, now);
+        system.set_section(active_section(ui));
+        plugins.tick_all(now);
 
         ui.render(canvas, now);
         const auto* frame = canvas.data();
@@ -101,7 +116,9 @@ int main(int argc, char** argv) {
             std::copy(frame, frame + Canvas::BufferSize, previous_frame.begin());
             frame_presented = true;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(33));
+        next_frame += std::chrono::milliseconds(33);
+        if (next_frame < Clock::now()) next_frame = Clock::now();
+        std::this_thread::sleep_until(next_frame);
     }
 
     plugins.stop_all();

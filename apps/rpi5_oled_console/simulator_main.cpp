@@ -15,10 +15,23 @@ using namespace epui::rpi::console;
 
 namespace {
 
+using Clock = std::chrono::steady_clock;
+
 std::uint32_t now_ms() {
     using namespace std::chrono;
     return static_cast<std::uint32_t>(
-        duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+        duration_cast<milliseconds>(Clock::now().time_since_epoch()).count());
+}
+
+StatusSection active_section(const Ui& ui) {
+    if (ui.animating()) return StatusSection::Inactive;
+    switch (ui.page_index()) {
+    case 0: return StatusSection::Overview;
+    case 1: return StatusSection::Network;
+    case 2: return StatusSection::Power;
+    case 3: return StatusSection::System;
+    default: return StatusSection::Inactive;
+    }
 }
 
 } // namespace
@@ -45,16 +58,20 @@ int main() {
         || !plugins.add(terminal) || !plugins.add(system) || !plugins.add(shell)
         || !plugins.start_all()) return 1;
 
+    auto next_frame = Clock::now();
     while (!display.close_requested()) {
         const std::uint32_t now = now_ms();
-        plugins.tick_all(now);
 
         InputEvent event{};
         while (input.poll(event)) ui.handle(event, now);
+        system.set_section(active_section(ui));
+        plugins.tick_all(now);
 
         ui.render(canvas, now);
         if (!display.present(canvas)) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(33));
+        next_frame += std::chrono::milliseconds(16);
+        if (next_frame < Clock::now()) next_frame = Clock::now();
+        std::this_thread::sleep_until(next_frame);
     }
 
     plugins.stop_all();

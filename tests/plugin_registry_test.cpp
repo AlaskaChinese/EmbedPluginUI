@@ -45,6 +45,7 @@ class TestSensor final : public epui::SensorPlugin<TestSnapshot> {
 public:
     TestSensor() : SensorPlugin(100) {}
     const char* name() const override { return "test-sensor"; }
+    void refresh() { reset_schedule(); }
 protected:
     bool sample(TestSnapshot& out, std::uint32_t) override { out.value = ++samples; return true; }
 public:
@@ -125,6 +126,9 @@ int main() {
     sensor.tick(1100);
     assert(sensor.snapshot().value == 2);
     assert(sensor.sample_count() == 2);
+    sensor.refresh();
+    sensor.tick(1101);
+    assert(sensor.snapshot().value == 3);
 
     TestService service;
     service.tick(1000);

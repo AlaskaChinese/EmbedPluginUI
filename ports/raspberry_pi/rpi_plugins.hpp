@@ -12,15 +12,22 @@ class SystemMonitorPlugin final : public epui::SensorPlugin<StatusSnapshot> {
 public:
     explicit SystemMonitorPlugin(std::uint32_t interval_ms = 1000) : SensorPlugin(interval_ms) {}
     const char* name() const override { return "system-monitor"; }
+    void set_section(StatusSection section) {
+        if (section_ == section) return;
+        section_ = section;
+        reset_schedule();
+    }
+    StatusSection section() const { return section_; }
 
 protected:
     bool sample(StatusSnapshot& out, std::uint32_t) override {
-        out = monitor_.sample();
-        return true;
+        monitor_.sample(out, section_);
+        return section_ != StatusSection::Inactive;
     }
 
 private:
     SystemMonitor monitor_;
+    StatusSection section_{StatusSection::Inactive};
 };
 
 class TerminalFeedPlugin final : public epui::ServicePlugin {

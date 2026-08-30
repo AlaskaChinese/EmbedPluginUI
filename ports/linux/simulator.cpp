@@ -58,6 +58,7 @@ int main() {
     PluginRegistry plugins;
     if (!plugins.add(input) || !plugins.add(display) || !plugins.start_all()) return 1;
 
+    auto next_frame = Clock::now();
     while (!display.close_requested()) {
         const auto now = now_ms();
         plugins.tick_all(now);
@@ -73,7 +74,9 @@ int main() {
         diagnostics.record_transfer(elapsed_us(transfer_begin, Clock::now()),
                                     Canvas::BufferSize, presented);
         if (!presented) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        next_frame += std::chrono::milliseconds(16);
+        if (next_frame < Clock::now()) next_frame = Clock::now();
+        std::this_thread::sleep_until(next_frame);
     }
 
     plugins.stop_all();
