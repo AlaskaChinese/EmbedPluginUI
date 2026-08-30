@@ -45,12 +45,17 @@ No `std::vector`, `std::function`, runtime allocation or dynamic plugin loading 
 
 While the menu is focused:
 
-- `Next`: next item, or increase a value while editing.
-- `Prev`: previous item, or decrease a value while editing.
+- `Down`/`Up`: next/previous item; while editing, decrease/increase the value.
+- `Right`: enter a submenu or activate the selected item; while editing,
+  increase the value.
+- `Left`: return to the parent/root page; while editing, decrease the value.
 - `Select`: enter submenu, run action, toggle, cycle a choice, or enter/leave value editing.
 - `Back`: leave value editing, go to the parent menu, or unfocus at the root.
+- `Next`/`Prev`: retained as next/previous item controls for encoders and
+  existing integrations.
 
-When the root menu is unfocused, `Next/Prev` return to normal top-level `Ui` page navigation. `Select` focuses the menu again.
+When the root menu is unfocused, `Left`/`Right` and legacy `Prev`/`Next`
+return to top-level `Ui` page navigation. `Select` focuses the menu again.
 
 ## Layout freedom
 

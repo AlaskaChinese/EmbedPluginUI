@@ -28,8 +28,9 @@ The callback signature is:
 void on_popup_result(void* user, epui::PopupResult result);
 ```
 
-`Next`/`Prev` or Left/Right changes the selected button, `Select` or Enter
-accepts it, and `Back` or Escape cancels. While the popup is opening, visible
+`Left`/`Right` changes the selected button; legacy `Next`/`Prev` is also
+accepted for encoders. `Select` or Enter accepts it, and `Back` or Escape
+cancels. While the popup is opening, visible
 or closing, it is the top-level input target. The underlying page cannot
 navigate or receive characters until the popup is fully hidden.
 

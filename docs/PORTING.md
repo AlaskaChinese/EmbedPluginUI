@@ -20,9 +20,13 @@ epui::Oled128x64 oled(bus, epui::OledController::SSD1306);
 oled.init();
 ```
 
-Translate navigation into `epui::Key::Next`, `Prev`, `Select` and `Back`.
-Text-oriented ports can map explicit viewport actions to `ScrollUp` and
-`ScrollDown`; for example, the Raspberry Pi keyboard maps Ctrl+Up/Down.
+Keyboard ports should translate the four arrows into `epui::Key::Up`, `Down`,
+`Left` and `Right`. `Ui` uses unclaimed Left/Right for page navigation, while
+menus use Up/Down for selection and Left/Right for hierarchy. Encoders can
+continue producing `Next`/`Prev`; those remain compatible with page and menu
+navigation. Map explicit terminal viewport actions to `ScrollUp` and
+`ScrollDown`; the Raspberry Pi keyboard maps Ctrl+Up/Down and its terminal
+page scrolls one output line per event.
 Text-capable inputs set `InputEvent::ch`; key events leave it as zero. Always
 overwrite the complete event before returning it from `InputPlugin::poll()`.
 

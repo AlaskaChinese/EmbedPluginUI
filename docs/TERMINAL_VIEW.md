@@ -40,3 +40,31 @@ for read-only log views with `set_cursor_visible(false)` and blinks from the
 `Canvas` currently has one top-level clip rather than a clip stack.
 `TerminalView::draw()` sets its requested clip and resets it when finished, so
 it should not be nested inside another active clip.
+
+## Terminal controls
+
+`TerminalView` remains an input-agnostic renderer. Applications can use the
+small value-type `TerminalControls` mapping to keep terminal key behavior
+separate from page and menu navigation:
+
+```cpp
+#include <epui/terminal_controls.hpp>
+
+epui::TerminalControls controls;  // conventional defaults
+controls.cursor_left = epui::Key::Left;
+controls.cursor_right = epui::Key::Right;
+controls.output_up = epui::Key::ScrollUp;
+controls.output_down = epui::Key::ScrollDown;
+
+const epui::TerminalAction action = controls.action_for(key, focused);
+```
+
+The default mapping uses Enter to focus/execute, Escape to unfocus,
+Left/Right for the local input cursor, and `ScrollUp`/`ScrollDown` for output.
+The desktop and Raspberry Pi keyboard ports produce those scroll actions from
+Ctrl+Up/Down. The supplied terminal pages scroll one output line per event;
+normal keyboard repeat provides continuous movement when the keys are held.
+
+`TerminalControls` is copied into the terminal page and can be supplied to its
+constructor or replaced with `set_controls()`. No virtual interface, heap
+allocation or platform key code is required in the core.

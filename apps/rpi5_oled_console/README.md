@@ -32,8 +32,8 @@ The five pages appear in the same order as the Raspberry Pi build:
 
 Use Left/Right to change pages. On Terminal, press Enter to focus, type a
 command such as `uname -a`, and press Enter again to execute it. While focused,
-Left/Right moves the local input cursor, Ctrl+Up shows one older output page,
-Ctrl+Down moves one page toward the latest output, Ctrl-C interrupts the
+Left/Right moves the local input cursor, Ctrl+Up moves one output line toward
+older history, Ctrl+Down moves one line toward the latest output, Ctrl-C interrupts the
 foreground command, and Esc returns to page navigation. Close the window to
 stop the simulator and its shell.
 
