@@ -28,4 +28,14 @@ jobs:
         run: |
           set -euo pipefail
           export WIKI_REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+
+          # GitHub does not create <repo>.wiki.git when the Wiki feature is only
+          # enabled. The backend repository appears after the first page has been
+          # saved once in the GitHub UI. Keep CI green until that one-time bootstrap
+          # is done; the next push or manual dispatch will publish all source pages.
+          if ! git ls-remote "${WIKI_REMOTE}" >/dev/null 2>&1; then
+            echo "::warning::GitHub Wiki is enabled but its Git backend is not initialized yet. Create and save the first Wiki page once, then re-run this workflow."
+            exit 0
+          fi
+
           bash scripts/publish-wiki.sh
