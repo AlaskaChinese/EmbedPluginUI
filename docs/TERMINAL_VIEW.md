@@ -77,10 +77,3 @@ fixed-capacity command buffer used by the supplied pages. It supports insertion,
 deletion, cursor movement, consecutive-duplicate suppression, history traversal
 and restoration of the draft that was present before pressing Up. The generic
 simulator uses 8 history entries and the Raspberry Pi application uses 16.
-
-Tab completion is intentionally implemented in the Raspberry Pi application,
-not in `TerminalView`: it queries the host filesystem and `PATH`, which are OS
-services. It completes executable names in command position and files or
-directories in argument position. Multiple matches advance only to their
-longest common prefix; quoted shell expressions, aliases, functions and
-shell-specific option completion remain the shell's responsibility.

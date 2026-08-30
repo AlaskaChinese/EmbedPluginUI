@@ -76,7 +76,6 @@ private:
     static constexpr std::size_t CommandCapacity = 128;
     static constexpr std::size_t VisibleColumns = 20;
 
-    void complete();
     void execute();
 
     const char* dependency_[1]{"shell-session"};

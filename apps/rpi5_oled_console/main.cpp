@@ -90,8 +90,7 @@ int main(int argc, char** argv) {
     std::fprintf(stderr,
                  "EmbedPluginUI Pi 5 console running: input=%s shell=%s; "
                  "Left/Right=pages/edit, Up/Down=menu/history, "
-                 "Ctrl+Up/Down=scroll output, Tab=complete, Enter=focus/run, "
-                 "Esc=unfocus\n",
+                 "Ctrl+Up/Down=scroll output, Enter=focus/run, Esc=unfocus\n",
                  input_device, shell_path);
 
     std::array<std::uint8_t, Canvas::BufferSize> previous_frame{};

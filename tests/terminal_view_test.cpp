@@ -35,7 +35,9 @@ int main() {
     assert(editor.next_history());
     assert(std::strcmp(editor.command(), "d") == 0);
     editor.commit();
-    editor.replace("three", 5, 5);
+    for (char ch : "three") {
+        if (ch != 0) editor.insert(ch);
+    }
     editor.commit();
     assert(editor.history_count() == 2);
     assert(editor.previous_history());

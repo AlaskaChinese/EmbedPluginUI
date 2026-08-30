@@ -123,8 +123,7 @@ Controls: Left/Right changes pages. In the menu, Enter focuses, Up/Down selects
 items, Right or Enter opens/activates, and Left or Esc returns. In a focused
 terminal, the top row is a local command editor, Left/Right moves its cursor,
 Up/Down selects command history, Ctrl+Up/Down scrolls output one line per key
-event, and Enter runs the command. The Raspberry Pi application also completes
-commands and paths with Tab. Ctrl-C is sent to the foreground process.
+event, and Enter runs the command. Ctrl-C is sent to the foreground process.
 
 To run the complete Raspberry Pi 5 application with X11 replacing the physical
 OLED and evdev keyboard:

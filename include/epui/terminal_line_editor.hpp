@@ -61,16 +61,6 @@ public:
         return true;
     }
 
-    bool replace(const char* text, std::size_t length, std::size_t cursor) {
-        if ((!text && length != 0) || length > Capacity || cursor > length) return false;
-        if (length != 0) std::memcpy(command_, text, length);
-        command_[length] = 0;
-        length_ = length;
-        cursor_ = cursor;
-        history_position_ = history_count_;
-        return true;
-    }
-
     void commit() {
         if (length_ != 0
             && (history_count_ == 0

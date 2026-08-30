@@ -1,11 +1,6 @@
 #include "pages.hpp"
-#include "shell_completion.hpp"
 #include <cassert>
-#include <cstdlib>
 #include <cstring>
-#include <fcntl.h>
-#include <string>
-#include <unistd.h>
 
 int main() {
     epui::Ui ui;
@@ -56,30 +51,8 @@ int main() {
     assert(std::strcmp(page.command(), "d") == 0);
     page.on_char('\b');
 
-    for (char ch : std::string("ctes")) page.on_char(ch);
     page.on_char('\t');
-    assert(std::strcmp(page.command(), "ctest ") == 0);
-
-    char temporary[] = "/tmp/epui-completion-XXXXXX";
-    const char* directory = ::mkdtemp(temporary);
-    assert(directory);
-    const std::string path = std::string(directory) + "/hello world";
-    const int file = ::open(path.c_str(), O_CREAT | O_WRONLY, 0600);
-    assert(file >= 0);
-    ::close(file);
-    const std::string partial = std::string("cat ") + directory + "/hel";
-    char completed[512]{};
-    std::size_t completed_length = 0;
-    std::size_t completed_cursor = 0;
-    const bool completion_ok = epui::rpi::console::complete_shell_token(
-        partial.c_str(), partial.size(), partial.size(), completed,
-        sizeof(completed), completed_length, completed_cursor);
-    const std::string expected = std::string("cat ") + directory + "/hello\\ world ";
-    ::unlink(path.c_str());
-    ::rmdir(directory);
-    assert(completion_ok);
-    assert(std::string(completed) == expected);
-    assert(completed_length == expected.size() && completed_cursor == expected.size());
+    assert(std::strcmp(page.command(), "    ") == 0);
 
     page.on_key(epui::Key::Back);
     assert(!page.focused());

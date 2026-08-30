@@ -1,5 +1,4 @@
 #include "pages.hpp"
-#include "shell_completion.hpp"
 #include "epui/widgets.hpp"
 #include <algorithm>
 #include <cstdio>
@@ -111,7 +110,7 @@ void TerminalPage::on_char(char ch) {
     if (ch == '\b' || ch == '\x7f') {
         editor_.erase_before_cursor();
     } else if (ch == '\t') {
-        complete();
+        for (int i = 0; i < 4; ++i) editor_.insert(' ');
     } else if (byte >= 0x20 && byte <= 0x7e) {
         editor_.insert(ch);
     } else if (ch != 0) {
@@ -137,17 +136,6 @@ void TerminalPage::draw(epui::Canvas& canvas, std::uint32_t now_ms) {
 
     canvas.line(0, 9, 127, 9);
     shell_.view().draw(canvas, 1, 11, 126, 49, now_ms);
-}
-
-void TerminalPage::complete() {
-    char completed[CommandCapacity + 1]{};
-    std::size_t completed_length = 0;
-    std::size_t completed_cursor = 0;
-    if (complete_shell_token(editor_.command(), editor_.length(), editor_.cursor(),
-                             completed, sizeof(completed), completed_length,
-                             completed_cursor)) {
-        editor_.replace(completed, completed_length, completed_cursor);
-    }
 }
 
 void TerminalPage::execute() {

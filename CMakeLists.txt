@@ -129,7 +129,6 @@ if(EPUI_BUILD_TESTS)
         add_executable(epui_rpi_terminal_page_test
             tests/rpi_terminal_page_test.cpp
             apps/rpi5_oled_console/pages.cpp
-            apps/rpi5_oled_console/shell_completion.cpp
             ports/raspberry_pi/pty_session.cpp
             ports/raspberry_pi/system_monitor.cpp
         )
