@@ -31,9 +31,13 @@ epui::InputEvent event{};
 while (input.poll(event)) ui.handle(event, now_ms);
 ```
 
-Release events are ignored by `Ui`. Character input goes directly to the
-current stable page through `Page::on_char()` and does not use
+Release events are ignored by `Ui`. The topmost input-capturing `UiOverlay`
+receives keys and characters first. With no modal overlay, character input goes
+directly to the current stable page through `Page::on_char()` and does not use
 `captures_key()`. Pages that accept text should gate `on_char()` with their own
 focus state.
+
+Source files may use UTF-8 literals for the compact symbol set documented in
+`GRAPHICS.md`; no locale or OS text service is required at runtime.
 
 A 30 FPS loop is a good MCU default. The Ubuntu/Windows simulators target roughly 60 FPS for animation development.

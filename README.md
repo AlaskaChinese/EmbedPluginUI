@@ -10,6 +10,7 @@ EmbedPluginUI is a portable C++17 UI framework for small embedded displays. The 
 - Input plugins: GPIO buttons, encoders, keyboards and future input devices.
 - Page plugins: dashboards, terminal, settings and application pages.
 - Widget plugins: cards, metrics, progress bars, icons and custom components.
+- Overlay plugins: modal popups, diagnostics and transient UI layers.
 - Platform plugins: STM32, ESP32, Raspberry Pi, Ubuntu/Linux and Windows.
 - Debug plugins: FPS overlay today, with room for frame-time/RAM/transport diagnostics later.
 
@@ -25,6 +26,12 @@ The portable core owns rendering, navigation and animation. Platform-specific co
 - Smooth animated scrolling for menus longer than one visible page.
 - `Choice` menu items for static enum-like settings without heap allocation.
 - Fixed-capacity `UiOverlay` support and a heap-free FPS debug overlay plugin.
+- Heap-free modal `PopupPlugin` with top-down spring entry, upward jelly exit
+  and modal key/character routing.
+- UTF-8 decoding for a compact embedded symbol set, including `°`, `℃`, `±`,
+  `µ`, `Ω`, `×`, `÷` and arrows.
+- Outline/filled circles plus allocation-free function, parametric and sampled
+  series plotting helpers.
 - SSD1306 and SH1106 support.
 - Callback transport for MCU integrations.
 - Dependency-aware, fixed-capacity plugin runtime.
@@ -75,7 +82,8 @@ examples/simulator_ui/
 ├── sensor_page.hpp / sensor_page.cpp
 ├── about_page.hpp / about_page.cpp
 ├── menu_demo.hpp / menu_demo.cpp
-└── terminal_page.hpp / terminal_page.cpp
+├── terminal_page.hpp / terminal_page.cpp
+└── graphics_page.hpp / graphics_page.cpp
 ```
 
 Edit the page files to develop the simulated OLED UI. `app.cpp` is the page composition point; `ports/linux/simulator.cpp` and `ports/windows/simulator.cpp` only implement the desktop window/input/display adapters.
@@ -89,6 +97,10 @@ Jelly Menu -> Display -> Theme -> Cursor
 ```
 
 Press `Select` to cycle among `Indicator`, `Glide`, `Slide`, and `Glass`. `Glide` and `Slide` retain clean pixel-stepped paths while their frames briefly lag/stretch and settle like jelly. `Glass` restores the first-generation spring/stretch cursor, but its sheen is visible only while moving and disappears completely at rest. The root menu and `Long Menu` demonstrate smooth scrolling beyond one page. FPS can be toggled under `Jelly Menu -> System -> Debug -> FPS Overlay`.
+
+The `Graphics` page demonstrates UTF-8 symbols, filled circles, animated sine
+and cosine plots, and the modal popup. Press Enter there to open the popup;
+Left/Right changes its selection and Enter confirms it.
 
 ## Ubuntu 22.04 development
 
@@ -140,4 +152,5 @@ session is required. Installation and systemd templates are documented in
 The embedded core does not require Linux, X11, Win32, RTTI, dynamic allocation or dynamic plugin loading. Platform adapters expose callback-based hooks so MCU applications can bind their existing I2C/GPIO/delay functions without importing vendor headers into the portable core.
 
 See `docs/ARCHITECTURE.md`, `docs/MENU_PLUGIN.md` and
-`docs/TERMINAL_VIEW.md` for the core design.
+`docs/TERMINAL_VIEW.md` for the core design. Popup and drawing APIs are covered
+by `docs/POPUP_PLUGIN.md` and `docs/GRAPHICS.md`.
