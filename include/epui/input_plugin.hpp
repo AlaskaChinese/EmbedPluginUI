@@ -9,6 +9,7 @@ namespace epui {
 struct InputEvent {
     Key key{Key::Select};
     bool pressed{true};
+    char ch{0};
 };
 
 template <std::size_t Capacity = 8>

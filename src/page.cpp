@@ -1,4 +1,5 @@
 #include "epui/page.hpp"
+#include "epui/input_plugin.hpp"
 #include <algorithm>
 
 namespace epui {
@@ -67,6 +68,18 @@ void Ui::handle(Key key, std::uint32_t now_ms) {
     if (key == Key::Next) begin_transition(1, now_ms);
     else if (key == Key::Prev) begin_transition(-1, now_ms);
     else page->on_key(key);
+}
+
+void Ui::handle(const InputEvent& event, std::uint32_t now_ms) {
+    if (!event.pressed) return;
+    if (event.ch == 0) {
+        handle(event.key, now_ms);
+        return;
+    }
+    // Input during a page transition belongs to neither stable page. Dropping
+    // it avoids sending terminal data to the page that is leaving the screen.
+    if (count_ == 0 || transition_active_) return;
+    pages_[current_]->on_char(event.ch);
 }
 
 void Ui::step_transition_spring(float dt) {

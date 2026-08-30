@@ -6,13 +6,22 @@
 
 namespace epui {
 
-enum class Key : std::uint8_t { Next, Prev, Select, Back };
+enum class Key : std::uint8_t {
+    Next,
+    Prev,
+    Select,
+    Back,
+    ScrollUp,
+    ScrollDown,
+};
+struct InputEvent;
 
 class Page {
 public:
     virtual ~Page() = default;
     virtual void draw(Canvas& canvas, std::uint32_t now_ms) = 0;
     virtual void on_key(Key) {}
+    virtual void on_char(char) {}
     virtual bool captures_key(Key) const { return false; }
 };
 
@@ -43,6 +52,7 @@ public:
     bool add_overlay(UiOverlay& overlay);
     bool remove_overlay(UiOverlay& overlay);
     void handle(Key key, std::uint32_t now_ms);
+    void handle(const InputEvent& event, std::uint32_t now_ms);
     void render(Canvas& canvas, std::uint32_t now_ms);
     std::size_t page_index() const { return current_; }
     std::size_t page_count() const { return count_; }

@@ -19,8 +19,9 @@ EmbedPluginUI follows one rule: **everything that can vary is a plugin boundary*
              /           |          \
          STM32         ESP32      Linux I2C
 
-Input plugins --------------------------------> Ui::handle()
-(button / encoder / keyboard)
+Input plugins --------------------------------> Ui::handle(InputEvent)
+(button / encoder / keyboard)                    |          |
+                                              on_key()   on_char()
 ```
 
 ## Core rules
@@ -28,8 +29,12 @@ Input plugins --------------------------------> Ui::handle()
 - C++17 portable core with no OS dependency.
 - 128x64 monochrome framebuffer uses 1024 bytes.
 - Rendering uses no dynamic allocation.
+- Text input and semantic navigation share `InputEvent` but remain separate
+  page callbacks.
+- `TerminalView` owns fixed-capacity terminal parsing, history and rendering;
+  PTY/FIFO readers stay in platform adapters.
 - Pages are application-owned and stored as references.
-- 220 ms cubic ease-out transitions reuse the same framebuffer.
+- Configurable damped-spring page transitions reuse the same framebuffer.
 - Hardware details stay outside pages and widgets.
 - New display controllers, transports, platforms and input devices enter through adapters/plugins.
 - Plugin dependencies are resolved deterministically before startup.

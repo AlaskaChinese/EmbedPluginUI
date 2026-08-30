@@ -1,0 +1,79 @@
+#include "epui/terminal_view.hpp"
+#include <cassert>
+#include <cstring>
+
+namespace {
+
+bool pixel_on(const epui::Canvas& canvas, int x, int y) {
+    const std::size_t index = static_cast<std::size_t>(x + (y / 8) * epui::Canvas::Width);
+    return ((canvas.data()[index] >> (y & 7)) & 1u) != 0u;
+}
+
+} // namespace
+
+int main() {
+    epui::TerminalView<8, 8> view;
+    assert(view.line_count() == 1);
+    assert(std::strcmp(view.line(0), "") == 0);
+
+    view.feed("abc\rZ", 5);
+    assert(std::strcmp(view.line(0), "Zbc") == 0);
+    assert(view.cursor_column() == 1);
+    view.feed('\b');
+    view.feed('Q');
+    assert(std::strcmp(view.line(0), "Qbc") == 0);
+
+    view.clear();
+    view.feed("one\ntwo", 7);
+    assert(view.line_count() == 2);
+    assert(std::strcmp(view.line(0), "one") == 0);
+    assert(std::strcmp(view.line(1), "two") == 0);
+
+    epui::TerminalView<8, 4> wrapped;
+    wrapped.feed("abcde", 5);
+    assert(wrapped.line_count() == 2);
+    assert(std::strcmp(wrapped.line(0), "abcd") == 0);
+    assert(std::strcmp(wrapped.line(1), "e") == 0);
+
+    epui::TerminalView<8, 8> ansi;
+    const char csi_start[] = "\x1b[";
+    const char colored[] = "31mred\x1b[0m";
+    ansi.feed(csi_start, sizeof(csi_start) - 1);
+    ansi.feed(colored, sizeof(colored) - 1);
+    assert(std::strcmp(ansi.line(0), "red") == 0);
+    const char title[] = "\x1b]0;title\x07ok";
+    ansi.feed(title, sizeof(title) - 1);
+    assert(std::strcmp(ansi.line(0), "redok") == 0);
+    ansi.feed('\x1b');
+    ansi.clear();
+    ansi.feed('A');
+    assert(std::strcmp(ansi.line(0), "A") == 0);
+
+    epui::TerminalView<3, 8> ring;
+    ring.feed("one\ntwo\nthree\nfour", 18);
+    assert(ring.line_count() == 3);
+    assert(std::strcmp(ring.line(0), "two") == 0);
+    assert(std::strcmp(ring.line(1), "three") == 0);
+    assert(std::strcmp(ring.line(2), "four") == 0);
+    ring.scroll(100);
+    assert(ring.scroll_offset() == 2);
+    ring.scroll(-1);
+    assert(ring.scroll_offset() == 1);
+    ring.feed('!');
+    assert(ring.scroll_offset() == 0);
+    assert(std::strcmp(ring.line(2), "four!") == 0);
+
+    epui::TerminalView<2, 4> cursor;
+    epui::Canvas canvas;
+    cursor.draw(canvas, 0, 0, 24, 7, 0);
+    assert(pixel_on(canvas, 0, 0));
+    canvas.clear();
+    cursor.draw(canvas, 0, 0, 24, 7, 600);
+    assert(!pixel_on(canvas, 0, 0));
+    cursor.set_cursor_visible(false);
+    canvas.clear();
+    cursor.draw(canvas, 0, 0, 24, 7, 0);
+    assert(!pixel_on(canvas, 0, 0));
+
+    return 0;
+}

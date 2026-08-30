@@ -23,12 +23,18 @@
 #include "epui/service_plugin.hpp"
 #include "epui/standard_widgets.hpp"
 #include "epui/theme_plugin.hpp"
+#include "epui/terminal_view.hpp"
 #include "epui/widget_plugin.hpp"
+#include <cassert>
 
 class PublicPage final : public epui::PagePlugin {
 public:
     explicit PublicPage(epui::Ui& ui) : epui::PagePlugin(ui, "public-page") {}
     void draw(epui::Canvas& canvas, std::uint32_t) override { canvas.pixel(0, 0); }
+    void on_key(epui::Key) override { ++keys; }
+    void on_char(char value) override { last_char = value; }
+    int keys{0};
+    char last_char{0};
 };
 
 int main() {
@@ -38,5 +44,23 @@ int main() {
     epui::DiagnosticsPlugin diagnostics(ui);
     epui::FpsDebugPlugin* compatibility = &diagnostics;
     page.draw(canvas, 0);
+    assert(page.start());
+
+    ui.handle(epui::InputEvent{epui::Key::Select, true, 'x'}, 0);
+    assert(page.last_char == 'x' && page.keys == 0);
+    ui.handle(epui::InputEvent{epui::Key::Select, false, 'y'}, 0);
+    assert(page.last_char == 'x' && page.keys == 0);
+    ui.handle(epui::InputEvent{epui::Key::Select, false, 0}, 0);
+    assert(page.keys == 0);
+    ui.handle(epui::Key::Select, 0);
+    assert(page.keys == 1);
+
+    PublicPage second(ui);
+    assert(second.start());
+    ui.handle(epui::Key::Next, 1);
+    assert(ui.animating());
+    ui.handle(epui::InputEvent{epui::Key::Select, true, 'z'}, 1);
+    assert(page.last_char == 'x' && second.last_char == 0);
+
     return canvas.data()[0] == 0 || compatibility->kind() != epui::PluginKind::Debug ? 1 : 0;
 }
