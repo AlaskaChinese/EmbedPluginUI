@@ -7,6 +7,7 @@
 #include "epui/menu_plugin.hpp"
 #include "epui/page.hpp"
 #include "home_page.hpp"
+#include "graphics_page.hpp"
 #include "menu_demo.hpp"
 #include "sensor_page.hpp"
 #include "terminal_page.hpp"
@@ -24,6 +25,8 @@ public:
     const Ui& ui() const { return ui_; }
     MenuPagePlugin<12>& menu() { return menu_; }
     TerminalDemoPage& terminal() { return terminal_; }
+    GraphicsDemoPage& graphics() { return graphics_; }
+    PopupPlugin& popup() { return popup_; }
     DiagnosticsPlugin& diagnostics() { return diagnostics_; }
     const DiagnosticsPlugin& diagnostics() const { return diagnostics_; }
 
@@ -39,6 +42,8 @@ private:
     AboutPage about_;
     MenuPagePlugin<12> menu_;
     TerminalDemoPage terminal_;
+    PopupPlugin popup_;
+    GraphicsDemoPage graphics_;
     DiagnosticsPlugin diagnostics_;
 };
 

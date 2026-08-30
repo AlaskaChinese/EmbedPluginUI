@@ -14,6 +14,86 @@ static const std::uint8_t kFont5x7[][5] = {
 {0,1,2,4,0},{0x20,0x54,0x54,0x54,0x78},{0x7F,0x48,0x44,0x44,0x38},{0x38,0x44,0x44,0x44,0x20},{0x38,0x44,0x44,0x48,0x7F},{0x38,0x54,0x54,0x54,0x18},{8,0x7E,9,1,2},{0x0C,0x52,0x52,0x52,0x3E},{0x7F,8,4,4,0x78},{0,0x44,0x7D,0x40,0},{0x20,0x40,0x44,0x3D,0},{0x7F,0x10,0x28,0x44,0},{0,0x41,0x7F,0x40,0},{0x7C,4,0x18,4,0x78},{0x7C,8,4,4,0x78},{0x38,0x44,0x44,0x44,0x38},
 {0x7C,0x14,0x14,0x14,8},{8,0x14,0x14,0x18,0x7C},{0x7C,8,4,4,8},{0x48,0x54,0x54,0x54,0x20},{4,0x3F,0x44,0x40,0x20},{0x3C,0x40,0x40,0x20,0x7C},{0x1C,0x20,0x40,0x20,0x1C},{0x3C,0x40,0x30,0x40,0x3C},{0x44,0x28,0x10,0x28,0x44},{0x0C,0x50,0x50,0x50,0x3C},{0x44,0x64,0x54,0x4C,0x44},{0,8,0x36,0x41,0},{0,0,0x7F,0,0},{0,0x41,0x36,8,0},{8,4,8,0x10,8}
 };
+
+struct ExtraGlyph {
+    std::uint32_t codepoint;
+    std::uint8_t width;
+    std::uint8_t columns[9];
+};
+
+static const ExtraGlyph kExtraGlyphs[] = {
+    {0x00B0, 3, {0x02, 0x05, 0x02}},                         // °
+    {0x00B1, 5, {0x44, 0x44, 0x5F, 0x44, 0x44}},             // ±
+    {0x00B5, 5, {0x7C, 0x40, 0x40, 0x20, 0x7C}},             // µ
+    {0x00D7, 5, {0x41, 0x22, 0x14, 0x22, 0x41}},             // ×
+    {0x00F7, 5, {0x08, 0x08, 0x49, 0x08, 0x08}},             // ÷
+    {0x03A9, 5, {0x5E, 0x61, 0x01, 0x61, 0x5E}},             // Ω
+    {0x2103, 9, {0x02, 0x05, 0x02, 0x00, 0x3E, 0x41, 0x41, 0x41, 0x22}}, // ℃
+    {0x2190, 5, {0x08, 0x14, 0x2A, 0x08, 0x08}},             // ←
+    {0x2191, 5, {0x04, 0x02, 0x7F, 0x02, 0x04}},             // ↑
+    {0x2192, 5, {0x08, 0x08, 0x2A, 0x14, 0x08}},             // →
+    {0x2193, 5, {0x10, 0x20, 0x7F, 0x20, 0x10}},             // ↓
+};
+
+struct GlyphView {
+    const std::uint8_t* columns;
+    int width;
+};
+
+GlyphView glyph_for(std::uint32_t codepoint) {
+    if (codepoint >= 0x20 && codepoint <= 0x7e) {
+        return {kFont5x7[codepoint - 0x20], 5};
+    }
+    for (const auto& glyph : kExtraGlyphs) {
+        if (glyph.codepoint == codepoint) return {glyph.columns, glyph.width};
+    }
+    return {kFont5x7[static_cast<unsigned char>('?') - 0x20], 5};
+}
+
+std::uint32_t next_utf8(const char*& text) {
+    const auto lead = static_cast<unsigned char>(*text);
+    if (lead < 0x80u) {
+        ++text;
+        return lead;
+    }
+
+    int continuation_count = 0;
+    std::uint32_t codepoint = 0;
+    std::uint32_t minimum = 0;
+    if ((lead & 0xe0u) == 0xc0u) {
+        continuation_count = 1;
+        codepoint = lead & 0x1fu;
+        minimum = 0x80u;
+    } else if ((lead & 0xf0u) == 0xe0u) {
+        continuation_count = 2;
+        codepoint = lead & 0x0fu;
+        minimum = 0x800u;
+    } else if ((lead & 0xf8u) == 0xf0u) {
+        continuation_count = 3;
+        codepoint = lead & 0x07u;
+        minimum = 0x10000u;
+    } else {
+        ++text;
+        return '?';
+    }
+
+    const char* cursor = text + 1;
+    for (int i = 0; i < continuation_count; ++i) {
+        const auto byte = static_cast<unsigned char>(*cursor);
+        if (byte == 0 || (byte & 0xc0u) != 0x80u) {
+            ++text;
+            return '?';
+        }
+        codepoint = (codepoint << 6u) | (byte & 0x3fu);
+        ++cursor;
+    }
+    text = cursor;
+    if (codepoint < minimum || codepoint > 0x10ffffu
+        || (codepoint >= 0xd800u && codepoint <= 0xdfffu)) {
+        return '?';
+    }
+    return codepoint;
+}
 }
 
 Canvas::Canvas() { clear(); }
@@ -166,6 +246,15 @@ void Canvas::circle(int cx, int cy, int r, bool on) {
     }
 }
 
+void Canvas::fill_circle(int cx, int cy, int r, bool on) {
+    if (r < 0) return;
+    for (int y = -r; y <= r; ++y) {
+        const int half_width = static_cast<int>(
+            std::sqrt(static_cast<double>(r * r - y * y)));
+        line(cx - half_width, cy + y, cx + half_width, cy + y, on);
+    }
+}
+
 void Canvas::progress_bar(int x, int y, int w, int h, float value) {
     value = std::max(0.0f, std::min(1.0f, value));
     round_rect(x, y, w, h, 2, true);
@@ -174,28 +263,40 @@ void Canvas::progress_bar(int x, int y, int w, int h, float value) {
 }
 
 void Canvas::glyph5x7(int x, int y, char c, bool on) {
-    if (c < 0x20 || c > 0x7E) c = '?';
-    const auto& g = kFont5x7[static_cast<unsigned char>(c) - 0x20];
-    for (int col = 0; col < 5; ++col) {
+    glyph5x7(x, y, static_cast<std::uint32_t>(static_cast<unsigned char>(c)), on);
+}
+
+void Canvas::glyph5x7(int x, int y, std::uint32_t codepoint, bool on) {
+    const GlyphView glyph = glyph_for(codepoint);
+    for (int col = 0; col < glyph.width; ++col) {
         for (int row = 0; row < 7; ++row) {
-            if (g[col] & (1u << row)) pixel(x + col, y + row, on);
+            if (glyph.columns[col] & (1u << row)) pixel(x + col, y + row, on);
         }
     }
 }
 
+int Canvas::glyph_width5x7(std::uint32_t codepoint) const {
+    return glyph_for(codepoint).width;
+}
+
 void Canvas::text(int x, int y, const char* s, bool on, int spacing) {
     if (!s) return;
-    for (; *s; ++s) {
-        glyph5x7(x, y, *s, on);
-        x += 5 + spacing;
+    while (*s) {
+        const std::uint32_t codepoint = next_utf8(s);
+        glyph5x7(x, y, codepoint, on);
+        x += glyph_width5x7(codepoint) + spacing;
     }
 }
 
 int Canvas::text_width(const char* s, int spacing) const {
     if (!s || !*s) return 0;
-    int n = 0;
-    while (*s++) ++n;
-    return n * 5 + (n - 1) * spacing;
+    int width = 0;
+    int glyphs = 0;
+    while (*s) {
+        width += glyph_width5x7(next_utf8(s));
+        ++glyphs;
+    }
+    return width + (glyphs - 1) * spacing;
 }
 
 } // namespace epui

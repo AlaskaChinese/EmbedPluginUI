@@ -17,6 +17,7 @@ enum class PluginKind : std::uint8_t {
     Platform,
     Service,
     Debug,
+    Overlay,
 };
 
 struct PluginDependencies {

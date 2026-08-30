@@ -4,7 +4,7 @@
 namespace epui::demo {
 
 void HomePage::draw(Canvas& c, std::uint32_t now_ms) {
-    draw_header(c, "EmbedPluginUI", 1, 3);
+    draw_header(c, "EmbedPluginUI", 1, 6);
     c.text(5, 18, "PLUGIN-FIRST UI");
     const float progress = 0.25f + 0.75f * static_cast<float>(now_ms % 3000) / 3000.0f;
     c.progress_bar(5, 31, 118, 8, progress);

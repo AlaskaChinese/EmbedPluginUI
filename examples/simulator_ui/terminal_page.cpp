@@ -10,7 +10,7 @@ TerminalDemoPage::TerminalDemoPage() {
 }
 
 void TerminalDemoPage::draw(Canvas& canvas, std::uint32_t now_ms) {
-    draw_header(canvas, focused_ ? "Terminal *" : "Terminal", 5, 5);
+    draw_header(canvas, focused_ ? "Terminal *" : "Terminal", 5, 6);
     view_.draw(canvas, 1, 15, 126, 42, now_ms);
 }
 

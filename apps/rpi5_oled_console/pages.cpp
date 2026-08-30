@@ -25,7 +25,7 @@ void OverviewPage::draw(epui::Canvas& canvas, std::uint32_t) {
     const auto& status = system_.snapshot();
     epui::draw_header(canvas, "Pi 5", 1, 5);
     char buffer[24];
-    format_value(buffer, sizeof(buffer), status.temperature_c, "C", 1);
+    format_value(buffer, sizeof(buffer), status.temperature_c, u8"°C", 1);
     draw_key_value(canvas, 17, "TEMP", buffer);
     format_value(buffer, sizeof(buffer), status.cpu_percent, "%");
     draw_key_value(canvas, 27, "CPU", buffer);

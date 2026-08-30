@@ -19,6 +19,7 @@ set(EPUI_SIM_UI_SOURCES
     examples/simulator_ui/home_page.cpp
     examples/simulator_ui/sensor_page.cpp
     examples/simulator_ui/about_page.cpp
+    examples/simulator_ui/graphics_page.cpp
     examples/simulator_ui/menu_demo.cpp
     examples/simulator_ui/terminal_page.cpp
 )
@@ -105,6 +106,14 @@ if(EPUI_BUILD_TESTS)
     add_executable(epui_terminal_view_test tests/terminal_view_test.cpp)
     target_link_libraries(epui_terminal_view_test PRIVATE epui)
     add_test(NAME epui_terminal_view COMMAND epui_terminal_view_test)
+
+    add_executable(epui_popup_plugin_test tests/popup_plugin_test.cpp)
+    target_link_libraries(epui_popup_plugin_test PRIVATE epui)
+    add_test(NAME epui_popup_plugin COMMAND epui_popup_plugin_test)
+
+    add_executable(epui_graphics_test tests/graphics_test.cpp)
+    target_link_libraries(epui_graphics_test PRIVATE epui)
+    add_test(NAME epui_graphics COMMAND epui_graphics_test)
 
     if(UNIX AND NOT APPLE)
         add_executable(epui_pty_session_test

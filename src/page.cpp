@@ -18,8 +18,7 @@ bool Ui::remove_page(Page& page) {
         pages_[--count_] = nullptr;
         transition_active_ = false;
         transition_has_time_ = false;
-        transition_position_ = 0.0f;
-        transition_velocity_ = 0.0f;
+        transition_.reset(0.0f);
         target_ = current_ = count_ == 0 ? 0 : std::min(current_, count_ - 1);
         return true;
     }
@@ -44,8 +43,8 @@ bool Ui::remove_overlay(UiOverlay& overlay) {
 }
 
 void Ui::reset_transition_motion(std::uint32_t now_ms) {
-    transition_position_ = 0.0f;
-    transition_velocity_ = 0.0f;
+    transition_.reset(0.0f);
+    transition_.set_target(static_cast<float>(Canvas::Width));
     transition_last_ms_ = now_ms;
     transition_has_time_ = true;
 }
@@ -59,6 +58,10 @@ void Ui::begin_transition(int direction, std::uint32_t now_ms) {
 }
 
 void Ui::handle(Key key, std::uint32_t now_ms) {
+    if (UiOverlay* overlay = input_overlay()) {
+        overlay->on_key(key);
+        return;
+    }
     if (count_ == 0) return;
     Page* page = pages_[current_];
     if (page->captures_key(key)) {
@@ -76,19 +79,14 @@ void Ui::handle(const InputEvent& event, std::uint32_t now_ms) {
         handle(event.key, now_ms);
         return;
     }
+    if (UiOverlay* overlay = input_overlay()) {
+        overlay->on_char(event.ch);
+        return;
+    }
     // Input during a page transition belongs to neither stable page. Dropping
     // it avoids sending terminal data to the page that is leaving the screen.
     if (count_ == 0 || transition_active_) return;
     pages_[current_]->on_char(event.ch);
-}
-
-void Ui::step_transition_spring(float dt) {
-    const float target = static_cast<float>(Canvas::Width);
-    transition_velocity_ += (target - transition_position_) * transition_style_.spring_stiffness * dt;
-    float damping = 1.0f - transition_style_.spring_damping * dt;
-    if (damping < 0.0f) damping = 0.0f;
-    transition_velocity_ *= damping;
-    transition_position_ += transition_velocity_ * dt;
 }
 
 void Ui::advance_transition(std::uint32_t now_ms) {
@@ -98,27 +96,21 @@ void Ui::advance_transition(std::uint32_t now_ms) {
         return;
     }
 
-    std::uint32_t elapsed = now_ms - transition_last_ms_;
+    const std::uint32_t elapsed = now_ms - transition_last_ms_;
     transition_last_ms_ = now_ms;
-    if (elapsed > transition_style_.max_frame_ms) elapsed = transition_style_.max_frame_ms;
-
-    while (elapsed > 0) {
-        const std::uint32_t step_ms = elapsed > 8 ? 8 : elapsed;
-        const float dt = static_cast<float>(step_ms) / 16.0f;
-        step_transition_spring(dt);
-        elapsed -= step_ms;
-    }
-
-    if (transition_settled()) {
-        transition_position_ = static_cast<float>(Canvas::Width);
-        transition_velocity_ = 0.0f;
-    }
+    transition_.step(elapsed, transition_style_);
 }
 
 bool Ui::transition_settled() const {
-    const float target = static_cast<float>(Canvas::Width);
-    return absf(target - transition_position_) <= transition_style_.settle_position_px
-        && absf(transition_velocity_) <= transition_style_.settle_velocity;
+    return transition_.settled(transition_style_);
+}
+
+UiOverlay* Ui::input_overlay() const {
+    for (std::size_t i = overlay_count_; i > 0; --i) {
+        UiOverlay* overlay = overlays_[i - 1];
+        if (overlay && overlay->captures_input()) return overlay;
+    }
+    return nullptr;
 }
 
 void Ui::draw_page_dots(Canvas& canvas) const {
@@ -148,7 +140,7 @@ void Ui::render(Canvas& canvas, std::uint32_t now_ms) {
             pages_[current_]->draw(canvas, now_ms);
         } else {
             advance_transition(now_ms);
-            const int shift = round_to_int(transition_position_);
+            const int shift = round_to_int(transition_.position());
             canvas.set_origin(-direction_ * shift, 0);
             pages_[current_]->draw(canvas, now_ms);
             canvas.set_origin(direction_ * (Canvas::Width - shift), 0);

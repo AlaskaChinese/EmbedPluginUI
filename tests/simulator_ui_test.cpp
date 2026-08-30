@@ -28,7 +28,7 @@ int main() {
     auto& menu = app.menu();
     std::uint32_t now = 0;
 
-    assert(ui.page_count() == 5);
+    assert(ui.page_count() == 6);
     assert(ui.page_index() == 0);
 
     // The top-level menu page is intentionally passive until Enter/Select.
@@ -74,6 +74,25 @@ int main() {
     ui.handle(epui::Key::Next, now);
     assert(ui.animating());
     settle_transition(app, now);
+    assert(ui.page_index() == 5);
+
+    auto& popup = app.popup();
+    ui.handle(epui::Key::Select, now);
+    assert(popup.visible());
+    ui.handle(epui::Key::Next, now);
+    assert(popup.selected_index() == 1);
+    assert(!ui.animating() && ui.page_index() == 5);
+    ui.handle(epui::Key::Prev, now);
+    assert(popup.selected_index() == 0);
+    ui.handle(epui::Key::Select, now);
+    for (int i = 0; i < 240 && popup.visible(); ++i) {
+        now += 16;
+        ui.render(app.canvas(), now);
+    }
+    assert(!popup.visible());
+    assert(app.graphics().last_result() == epui::PopupResult::Accepted);
+
+    move_page(app, epui::Key::Next, now);
     assert(ui.page_index() == 0);
 
     return 0;

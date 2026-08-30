@@ -43,8 +43,11 @@ public:
     void round_rect(int x, int y, int w, int h, int r, bool on = true);
     void fill_round_rect(int x, int y, int w, int h, int r, bool on = true);
     void circle(int cx, int cy, int r, bool on = true);
+    void fill_circle(int cx, int cy, int r, bool on = true);
     void progress_bar(int x, int y, int w, int h, float value);
     void glyph5x7(int x, int y, char c, bool on = true);
+    void glyph5x7(int x, int y, std::uint32_t codepoint, bool on = true);
+    int glyph_width5x7(std::uint32_t codepoint) const;
     void text(int x, int y, const char* s, bool on = true, int spacing = 1);
     int text_width(const char* s, int spacing = 1) const;
     const std::uint8_t* data() const { return buffer_; }
