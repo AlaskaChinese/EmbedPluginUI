@@ -79,7 +79,9 @@ int main() {
     assert(!callback.called);
     ui.handle(epui::Key::Next, now);
     assert(!ui.animating());
-    settle(ui, canvas, popup, now);
+    int closing_stretch = 0;
+    settle(ui, canvas, popup, now, nullptr, &closing_stretch);
+    assert(closing_stretch > 0);
     assert(!popup.visible());
     assert(callback.called && callback.result == epui::PopupResult::Accepted);
 
