@@ -53,6 +53,8 @@ separate from page and menu navigation:
 epui::TerminalControls controls;  // conventional defaults
 controls.cursor_left = epui::Key::Left;
 controls.cursor_right = epui::Key::Right;
+controls.history_previous = epui::Key::Up;
+controls.history_next = epui::Key::Down;
 controls.output_up = epui::Key::ScrollUp;
 controls.output_down = epui::Key::ScrollDown;
 
@@ -60,7 +62,8 @@ const epui::TerminalAction action = controls.action_for(key, focused);
 ```
 
 The default mapping uses Enter to focus/execute, Escape to unfocus,
-Left/Right for the local input cursor, and `ScrollUp`/`ScrollDown` for output.
+Left/Right for the local input cursor, Up/Down for command history, and
+`ScrollUp`/`ScrollDown` for output.
 The desktop and Raspberry Pi keyboard ports produce those scroll actions from
 Ctrl+Up/Down. The supplied terminal pages scroll one output line per event;
 normal keyboard repeat provides continuous movement when the keys are held.
@@ -68,3 +71,16 @@ normal keyboard repeat provides continuous movement when the keys are held.
 `TerminalControls` is copied into the terminal page and can be supplied to its
 constructor or replaced with `set_controls()`. No virtual interface, heap
 allocation or platform key code is required in the core.
+
+`TerminalLineEditor<CommandCapacity, HistoryCapacity>` provides the portable,
+fixed-capacity command buffer used by the supplied pages. It supports insertion,
+deletion, cursor movement, consecutive-duplicate suppression, history traversal
+and restoration of the draft that was present before pressing Up. The generic
+simulator uses 8 history entries and the Raspberry Pi application uses 16.
+
+Tab completion is intentionally implemented in the Raspberry Pi application,
+not in `TerminalView`: it queries the host filesystem and `PATH`, which are OS
+services. It completes executable names in command position and files or
+directories in argument position. Multiple matches advance only to their
+longest common prefix; quoted shell expressions, aliases, functions and
+shell-specific option completion remain the shell's responsibility.

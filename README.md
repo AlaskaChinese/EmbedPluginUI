@@ -41,7 +41,7 @@ The portable core owns rendering, navigation and animation. Platform-specific co
 - Explicit `Up`/`Down`/`Left`/`Right` keyboard semantics while retaining
   `Next`/`Prev` for encoders and existing integrations.
 - Configurable `TerminalControls` with conventional focus, cursor, execute,
-  exit and output-scroll bindings.
+  exit, history and output-scroll bindings.
 - Fixed-capacity `TerminalView` with ASCII line history, ANSI sequence
   filtering, scrolling and a blinking cursor.
 - STM32 HAL and ESP-IDF platform adapters.
@@ -122,8 +122,9 @@ The simulator window title is `EmbedPluginUI - 128x64 Simulator`.
 Controls: Left/Right changes pages. In the menu, Enter focuses, Up/Down selects
 items, Right or Enter opens/activates, and Left or Esc returns. In a focused
 terminal, the top row is a local command editor, Left/Right moves its cursor,
-Ctrl+Up/Down scrolls output one line per key event, and Enter runs the command.
-Ctrl-C is sent to the foreground process.
+Up/Down selects command history, Ctrl+Up/Down scrolls output one line per key
+event, and Enter runs the command. The Raspberry Pi application also completes
+commands and paths with Tab. Ctrl-C is sent to the foreground process.
 
 To run the complete Raspberry Pi 5 application with X11 replacing the physical
 OLED and evdev keyboard:

@@ -37,6 +37,14 @@ older history, Ctrl+Down moves one line toward the latest output, Ctrl-C interru
 foreground command, and Esc returns to page navigation. Close the window to
 stop the simulator and its shell.
 
+Up/Down selects from the 16-entry in-memory command history and restores an
+unfinished draft when returning to the newest position. Tab completes
+executables from `PATH` for the first token and filesystem paths for later
+tokens. A unique command/file adds a trailing space, a unique directory adds
+`/`, and multiple matches extend only to their longest common prefix. This
+local completion deliberately does not evaluate aliases, shell functions,
+quoted expressions or shell-specific option completers.
+
 The desktop simulator targets about 60 FPS with deadline-based frame pacing,
 and its X11 renderer batches adjacent lit pixels. The status monitor samples
 only the currently visible stable page and pauses sampling during page
