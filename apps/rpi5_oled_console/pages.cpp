@@ -1,4 +1,5 @@
 #include "pages.hpp"
+#include "shell_completion.hpp"
 #include "epui/widgets.hpp"
 #include <algorithm>
 #include <cstdio>
@@ -90,9 +91,13 @@ void TerminalPage::on_key(epui::Key key) {
     } else if (action == epui::TerminalAction::Execute) {
         execute();
     } else if (action == epui::TerminalAction::CursorRight) {
-        if (cursor_ < length_) ++cursor_;
+        editor_.move_right();
     } else if (action == epui::TerminalAction::CursorLeft) {
-        if (cursor_ > 0) --cursor_;
+        editor_.move_left();
+    } else if (action == epui::TerminalAction::HistoryPrevious) {
+        editor_.previous_history();
+    } else if (action == epui::TerminalAction::HistoryNext) {
+        editor_.next_history();
     } else if (action == epui::TerminalAction::OutputUp) {
         shell_.view().scroll(1);
     } else if (action == epui::TerminalAction::OutputDown) {
@@ -104,11 +109,11 @@ void TerminalPage::on_char(char ch) {
     if (!focused_) return;
     const auto byte = static_cast<unsigned char>(ch);
     if (ch == '\b' || ch == '\x7f') {
-        erase_before_cursor();
+        editor_.erase_before_cursor();
     } else if (ch == '\t') {
-        for (int i = 0; i < 4; ++i) insert(' ');
+        complete();
     } else if (byte >= 0x20 && byte <= 0x7e) {
-        insert(ch);
+        editor_.insert(ch);
     } else if (ch != 0) {
         shell_.send(ch);
     }
@@ -118,14 +123,15 @@ void TerminalPage::draw(epui::Canvas& canvas, std::uint32_t now_ms) {
     canvas.text(1, 1, ">");
 
     std::size_t first = 0;
-    if (cursor_ >= VisibleColumns) first = cursor_ - VisibleColumns + 1;
-    const std::size_t last = std::min(length_, first + VisibleColumns);
+    if (editor_.cursor() >= VisibleColumns) first = editor_.cursor() - VisibleColumns + 1;
+    const std::size_t last = std::min(editor_.length(), first + VisibleColumns);
     for (std::size_t i = first; i < last; ++i) {
-        canvas.glyph5x7(8 + static_cast<int>((i - first) * 6), 1, command_[i]);
+        canvas.glyph5x7(8 + static_cast<int>((i - first) * 6), 1,
+                        editor_.command()[i]);
     }
 
     if (focused_ && ((now_ms / 500u) & 1u) == 0u) {
-        const std::size_t visible_cursor = cursor_ - first;
+        const std::size_t visible_cursor = editor_.cursor() - first;
         canvas.invert_rect(8 + static_cast<int>(visible_cursor * 6), 1, 6, 7);
     }
 
@@ -133,28 +139,23 @@ void TerminalPage::draw(epui::Canvas& canvas, std::uint32_t now_ms) {
     shell_.view().draw(canvas, 1, 11, 126, 49, now_ms);
 }
 
-void TerminalPage::insert(char ch) {
-    if (length_ >= CommandCapacity) return;
-    for (std::size_t i = length_; i > cursor_; --i) command_[i] = command_[i - 1];
-    command_[cursor_++] = ch;
-    command_[++length_] = 0;
-}
-
-void TerminalPage::erase_before_cursor() {
-    if (cursor_ == 0) return;
-    for (std::size_t i = cursor_ - 1; i < length_; ++i) command_[i] = command_[i + 1];
-    --cursor_;
-    --length_;
+void TerminalPage::complete() {
+    char completed[CommandCapacity + 1]{};
+    std::size_t completed_length = 0;
+    std::size_t completed_cursor = 0;
+    if (complete_shell_token(editor_.command(), editor_.length(), editor_.cursor(),
+                             completed, sizeof(completed), completed_length,
+                             completed_cursor)) {
+        editor_.replace(completed, completed_length, completed_cursor);
+    }
 }
 
 void TerminalPage::execute() {
     if (!shell_.running() && !shell_.start()) return;
     shell_.view().clear();
-    if (length_ != 0) shell_.send(command_, length_);
+    if (editor_.length() != 0) shell_.send(editor_.command(), editor_.length());
     shell_.send('\r');
-    length_ = 0;
-    cursor_ = 0;
-    command_[0] = 0;
+    editor_.commit();
 }
 
 } // namespace epui::rpi::console

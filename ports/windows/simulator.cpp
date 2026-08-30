@@ -119,7 +119,7 @@ void paint(HWND hwnd) {
 
     SetBkMode(mem, TRANSPARENT);
     SetTextColor(mem, RGB(165, 173, 184));
-    const char* hint = "Left/Right: pages/back/open   Up/Down: menu   Ctrl+Up/Down: terminal output";
+    const char* hint = "Left/Right: pages/back/open   Up/Down: menu/history   Ctrl+Up/Down: output";
     TextOutA(mem, kPad, kClientH - 16, hint, lstrlenA(hint));
     BitBlt(hdc, 0, 0, client.right, client.bottom, mem, 0, 0, SRCCOPY);
     g_app.diagnostics().record_transfer(elapsed_us(transfer_begin, Clock::now()),

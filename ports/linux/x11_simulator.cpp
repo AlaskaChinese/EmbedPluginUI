@@ -72,7 +72,7 @@ bool X11DisplayPlugin::present(const epui::Canvas& canvas) {
                            Padding + y * Scale, (x - begin) * Scale, Scale);
         }
     }
-    const char* hint = "Left/Right: pages/back/open   Up/Down: menu   Ctrl+Up/Down: terminal output";
+    const char* hint = "Left/Right: pages/back/open   Up/Down: menu/history   Ctrl+Up/Down: output";
     XSetForeground(display_, gc_, 0xA5ADB8);
     XDrawString(display_, window_, gc_, Padding, WindowHeight - 10,
                 hint, static_cast<int>(std::strlen(hint)));

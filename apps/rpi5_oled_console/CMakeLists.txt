@@ -2,6 +2,7 @@ if(EPUI_BUILD_RPI)
     add_executable(epui_rpi
         main.cpp
         pages.cpp
+        shell_completion.cpp
         ${PROJECT_SOURCE_DIR}/ports/raspberry_pi/evdev_input.cpp
         ${PROJECT_SOURCE_DIR}/ports/raspberry_pi/linux_i2c.cpp
         ${PROJECT_SOURCE_DIR}/ports/raspberry_pi/pty_session.cpp
@@ -22,6 +23,7 @@ if(EPUI_BUILD_RPI_SIM)
         add_executable(epui_rpi_sim
             simulator_main.cpp
             pages.cpp
+            shell_completion.cpp
             ${PROJECT_SOURCE_DIR}/ports/linux/x11_simulator.cpp
             ${PROJECT_SOURCE_DIR}/ports/raspberry_pi/pty_session.cpp
             ${PROJECT_SOURCE_DIR}/ports/raspberry_pi/system_monitor.cpp

@@ -3,6 +3,7 @@
 #include <cstddef>
 #include "epui/page_plugin.hpp"
 #include "epui/terminal_controls.hpp"
+#include "epui/terminal_line_editor.hpp"
 #include "pty_session.hpp"
 #include "rpi_plugins.hpp"
 
@@ -65,25 +66,23 @@ public:
     void on_char(char ch) override;
     void draw(epui::Canvas&, std::uint32_t) override;
     bool focused() const { return focused_; }
-    const char* command() const { return command_; }
-    std::size_t command_length() const { return length_; }
-    std::size_t cursor() const { return cursor_; }
+    const char* command() const { return editor_.command(); }
+    std::size_t command_length() const { return editor_.length(); }
+    std::size_t cursor() const { return editor_.cursor(); }
+    std::size_t history_count() const { return editor_.history_count(); }
     const epui::TerminalControls& controls() const { return controls_; }
     void set_controls(const epui::TerminalControls& controls) { controls_ = controls; }
 private:
     static constexpr std::size_t CommandCapacity = 128;
     static constexpr std::size_t VisibleColumns = 20;
 
-    void insert(char ch);
-    void erase_before_cursor();
+    void complete();
     void execute();
 
     const char* dependency_[1]{"shell-session"};
     PtySessionPlugin& shell_;
     epui::TerminalControls controls_{};
-    char command_[CommandCapacity + 1]{};
-    std::size_t length_{0};
-    std::size_t cursor_{0};
+    epui::TerminalLineEditor<CommandCapacity, 16> editor_;
     bool focused_{false};
 };
 

@@ -12,6 +12,8 @@ enum class TerminalAction : std::uint8_t {
     Execute,
     CursorLeft,
     CursorRight,
+    HistoryPrevious,
+    HistoryNext,
     OutputUp,
     OutputDown,
 };
@@ -22,6 +24,8 @@ struct TerminalControls {
     Key execute{Key::Select};
     Key cursor_left{Key::Left};
     Key cursor_right{Key::Right};
+    Key history_previous{Key::Up};
+    Key history_next{Key::Down};
     Key output_up{Key::ScrollUp};
     Key output_down{Key::ScrollDown};
 
@@ -31,6 +35,8 @@ struct TerminalControls {
         if (key == execute) return TerminalAction::Execute;
         if (key == cursor_left) return TerminalAction::CursorLeft;
         if (key == cursor_right) return TerminalAction::CursorRight;
+        if (key == history_previous) return TerminalAction::HistoryPrevious;
+        if (key == history_next) return TerminalAction::HistoryNext;
         if (key == output_up) return TerminalAction::OutputUp;
         if (key == output_down) return TerminalAction::OutputDown;
         return TerminalAction::Ignore;

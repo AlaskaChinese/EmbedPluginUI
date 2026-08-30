@@ -80,6 +80,10 @@ int main() {
     ui.handle(epui::Key::Select, now);
     assert(terminal.command_length() == 0);
     assert(std::string(terminal.view().line(terminal.view().line_count() - 2)) == "$ h!i");
+    ui.handle(epui::Key::Up, now);
+    assert(std::string(terminal.command()) == "h!i");
+    ui.handle(epui::Key::Down, now);
+    assert(terminal.command_length() == 0);
     ui.handle(epui::Key::Back, now);
     assert(!terminal.focused());
     ui.handle(epui::Key::Right, now);

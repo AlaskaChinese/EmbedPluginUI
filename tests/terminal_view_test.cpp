@@ -1,5 +1,6 @@
 #include "epui/terminal_view.hpp"
 #include "epui/terminal_controls.hpp"
+#include "epui/terminal_line_editor.hpp"
 #include <cassert>
 #include <cstring>
 
@@ -18,9 +19,29 @@ int main() {
     assert(controls.action_for(epui::Key::Left, true) == epui::TerminalAction::CursorLeft);
     assert(controls.action_for(epui::Key::Right, true) == epui::TerminalAction::CursorRight);
     assert(controls.action_for(epui::Key::ScrollUp, true) == epui::TerminalAction::OutputUp);
-    assert(controls.action_for(epui::Key::Up, true) == epui::TerminalAction::Ignore);
+    assert(controls.action_for(epui::Key::Up, true) == epui::TerminalAction::HistoryPrevious);
     controls.cursor_left = epui::Key::Up;
     assert(controls.action_for(epui::Key::Up, true) == epui::TerminalAction::CursorLeft);
+
+    epui::TerminalLineEditor<8, 2> editor;
+    assert(editor.insert('a') && editor.insert('b'));
+    assert(editor.move_left() && editor.insert('x'));
+    assert(std::strcmp(editor.command(), "axb") == 0);
+    editor.commit();
+    assert(editor.history_count() == 1 && editor.length() == 0);
+    editor.insert('d');
+    assert(editor.previous_history());
+    assert(std::strcmp(editor.command(), "axb") == 0);
+    assert(editor.next_history());
+    assert(std::strcmp(editor.command(), "d") == 0);
+    editor.commit();
+    editor.replace("three", 5, 5);
+    editor.commit();
+    assert(editor.history_count() == 2);
+    assert(editor.previous_history());
+    assert(std::strcmp(editor.command(), "three") == 0);
+    assert(editor.previous_history());
+    assert(std::strcmp(editor.command(), "d") == 0);
 
     epui::TerminalView<8, 8> view;
     assert(view.line_count() == 1);
