@@ -115,8 +115,8 @@ ui.render(canvas, now_ms);
 
 ```cpp
 epui::PageTransitionStyle motion;
-motion.stiffness = 0.30f;
-motion.damping = 0.55f;
+motion.spring_stiffness = 0.30f;
+motion.spring_damping = 0.55f;
 ui.set_transition_style(motion);
 ```
 
@@ -271,7 +271,14 @@ ui.handle(event, now_ms);
 ui.render(canvas, now_ms);
 ```
 
-Page motion can be tuned with `PageTransitionStyle` / `SpringStyle` and `set_transition_style()`.
+Page motion can be tuned with `PageTransitionStyle` / `SpringStyle` and `set_transition_style()`:
+
+```cpp
+epui::PageTransitionStyle motion;
+motion.spring_stiffness = 0.30f;
+motion.spring_damping = 0.55f;
+ui.set_transition_style(motion);
+```
 
 ### `UiOverlay`
 
