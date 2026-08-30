@@ -1,0 +1,81 @@
+EmbedPluginUI Non-Commercial Source License 1.0
+
+Copyright (c) 2024-2026 AlaskaChinese. All rights reserved.
+
+IMPORTANT: This is a source-available license, not an OSI-approved open-source license.
+Commercial use requires a separate written commercial license obtained BEFORE commercial use begins.
+
+1. DEFINITIONS
+
+"Software" means the EmbedPluginUI source code, object code, documentation, examples, and other material distributed with this license, excluding third-party material that is expressly identified as being under another license.
+
+"Licensor" means the copyright holder(s) who have authority to license the Software.
+
+"You" means the individual or legal entity exercising rights under this license.
+
+"Non-Commercial Use" means use that is not primarily intended for or directed toward commercial advantage, monetary compensation, revenue generation, production activity of a for-profit business, or the delivery of paid goods or services. Personal study, hobby projects, education, academic study, and non-commercial research are examples of Non-Commercial Use.
+
+"Commercial Use" means any use directly or indirectly connected to commercial advantage or monetary compensation, including without limitation use in or for a for-profit business, paid product, paid service, paid client deliverable, production deployment, commercial hardware or firmware, OEM/ODM product, commercial SDK, subscription service, hosted service, or product offered for sale, lease, license, or other compensation.
+
+2. NON-COMMERCIAL LICENSE GRANT
+
+Subject to every term of this license, the Licensor grants You a non-exclusive, worldwide, royalty-free license to use, copy, study, and modify the Software solely for Non-Commercial Use.
+
+You may distribute the Software or a modified version solely for Non-Commercial Use if You:
+
+(a) keep all copyright, attribution, and license notices intact;
+(b) provide recipients with a copy of this license;
+(c) clearly identify material changes You made; and
+(d) distribute the Software and Your modifications under this same license, except for separable third-party components already governed by their own licenses.
+
+3. COMMERCIAL USE REQUIRES PRIOR WRITTEN AUTHORIZATION
+
+No Commercial Use is licensed under Section 2.
+
+Before any Commercial Use begins, You must obtain a separate written commercial license from the Licensor that expressly covers the intended use. Commercial terms, fees, scope, duration, deployment volume, support, redistribution rights, and other conditions are determined only by that separate written agreement.
+
+For commercial licensing inquiries, contact:
+
+alaskachinese@outlook.com
+
+4. NO RETROACTIVE COMMERCIAL AUTHORIZATION
+
+A commercial license obtained after unlicensed Commercial Use has already begun does not, by itself, retroactively authorize, waive, release, cure, or legalize that earlier use.
+
+Retroactive authorization, waiver, settlement, or release exists only if the Licensor expressly grants it in a separate written agreement that specifically covers the earlier use.
+
+Nothing in this license creates any right to begin Commercial Use first and obtain permission or pay fees later.
+
+5. TERMINATION
+
+Any rights granted to You under this license terminate automatically when You materially breach this license, including by engaging in Commercial Use without prior written commercial authorization.
+
+There is no automatic cure or reinstatement period under this public license. Any reinstatement, waiver, settlement, or permission after a breach must be expressly granted by the Licensor in writing.
+
+Termination does not limit any rights or remedies the Licensor may have concerning acts that occurred before termination or concerning unlicensed use.
+
+6. NO SUBLICENSING OR ADDITIONAL RIGHTS
+
+This license does not grant You the right to sublicense the Software under different terms, grant commercial rights to another party, use the Licensor's trademarks or branding, or represent that the Licensor endorses Your product or service.
+
+7. THIRD-PARTY MATERIAL
+
+This license applies only to material the Licensor has the legal right to license. Third-party code, fonts, images, libraries, or other components expressly identified as third-party material remain governed by their respective licenses.
+
+8. CONTRIBUTIONS
+
+Contributions accepted into the project may be subject to separate contribution terms, including terms that permit the project maintainer to distribute and relicense those contributions under both public non-commercial and commercial licenses. See CONTRIBUTING.md.
+
+9. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, OR NON-INFRINGEMENT.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR WILL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+10. RESERVATION OF RIGHTS
+
+All rights not expressly granted by this license are reserved by the Licensor.
+
+---
+
+For a Chinese explanatory translation, see LICENSE.zh-CN.md. If a translation conflicts with this English license text, this English text controls to the extent permitted by applicable law.
