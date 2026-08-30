@@ -285,7 +285,10 @@ public:
 
     bool captures_key(Key key) const override {
         if (key == Key::Select) return true;
-        return focused_ && (key == Key::Next || key == Key::Prev || key == Key::Back);
+        return focused_ && (key == Key::Up || key == Key::Down
+                            || key == Key::Left || key == Key::Right
+                            || key == Key::Next || key == Key::Prev
+                            || key == Key::Back);
     }
 
     void on_key(Key key) override {
@@ -294,18 +297,28 @@ public:
             return;
         }
 
-        if (key == Key::Next) {
+        if (key == Key::Down) {
+            if (editing_) adjust_value(-1);
+            else move_selection(1);
+        } else if (key == Key::Up) {
+            if (editing_) adjust_value(1);
+            else move_selection(-1);
+        } else if (key == Key::Next) {
             if (editing_) adjust_value(1);
             else move_selection(1);
         } else if (key == Key::Prev) {
             if (editing_) adjust_value(-1);
             else move_selection(-1);
+        } else if (key == Key::Right) {
+            if (editing_) adjust_value(1);
+            else activate_selected();
         } else if (key == Key::Select) {
             activate_selected();
+        } else if (key == Key::Left) {
+            if (editing_) adjust_value(-1);
+            else navigate_back();
         } else if (key == Key::Back) {
-            if (editing_) editing_ = false;
-            else if (depth_ > 1) leave_submenu();
-            else blur();
+            navigate_back();
         }
     }
 
@@ -321,6 +334,12 @@ public:
             || (direction < 0 && old_selected == 0);
         sync_selection(false, wrapped ? 0 : direction);
         return true;
+    }
+
+    void navigate_back() {
+        if (editing_) editing_ = false;
+        else if (depth_ > 1) leave_submenu();
+        else blur();
     }
 
     bool activate_selected() {

@@ -1,4 +1,5 @@
 #include "epui/terminal_view.hpp"
+#include "epui/terminal_controls.hpp"
 #include <cassert>
 #include <cstring>
 
@@ -12,6 +13,15 @@ bool pixel_on(const epui::Canvas& canvas, int x, int y) {
 } // namespace
 
 int main() {
+    epui::TerminalControls controls;
+    assert(controls.action_for(epui::Key::Select, false) == epui::TerminalAction::Focus);
+    assert(controls.action_for(epui::Key::Left, true) == epui::TerminalAction::CursorLeft);
+    assert(controls.action_for(epui::Key::Right, true) == epui::TerminalAction::CursorRight);
+    assert(controls.action_for(epui::Key::ScrollUp, true) == epui::TerminalAction::OutputUp);
+    assert(controls.action_for(epui::Key::Up, true) == epui::TerminalAction::Ignore);
+    controls.cursor_left = epui::Key::Up;
+    assert(controls.action_for(epui::Key::Up, true) == epui::TerminalAction::CursorLeft);
+
     epui::TerminalView<8, 8> view;
     assert(view.line_count() == 1);
     assert(std::strcmp(view.line(0), "") == 0);

@@ -58,7 +58,7 @@ int main() {
     assert(popup.visible() && popup.captures_input());
     const float hidden_position = popup.position();
 
-    ui.handle(epui::Key::Next, 0);
+    ui.handle(epui::Key::Right, 0);
     assert(popup.selected_index() == 1);
     assert(!ui.animating() && ui.page_index() == 0);
     ui.handle(epui::InputEvent{epui::Key::Select, true, 'x'}, 0);
@@ -72,7 +72,7 @@ int main() {
     assert(maximum > static_cast<float>(popup.style().resting_y));
     assert(maximum_stretch > 0);
 
-    ui.handle(epui::Key::Prev, now);
+    ui.handle(epui::Key::Left, now);
     assert(popup.selected_index() == 0);
     ui.handle(epui::Key::Select, now);
     assert(popup.state() == epui::PopupState::Closing);

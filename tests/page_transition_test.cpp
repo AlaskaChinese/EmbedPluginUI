@@ -35,7 +35,7 @@ int main() {
     assert(ui.add_page(second));
     assert(ui.page_index() == 0);
 
-    ui.handle(epui::Key::Next, 1000);
+    ui.handle(epui::Key::Right, 1000);
     assert(ui.animating());
     assert(std::fabs(ui.transition_position()) < 0.001f);
 
@@ -46,7 +46,7 @@ int main() {
     assert(ui.page_index() == 1);
     assert(std::fabs(ui.transition_position() - static_cast<float>(epui::Canvas::Width)) < 0.001f);
 
-    ui.handle(epui::Key::Prev, 2000);
+    ui.handle(epui::Key::Left, 2000);
     assert(ui.animating());
     max_position = 0.0f;
     run_until_settled(ui, canvas, 2000, max_position);

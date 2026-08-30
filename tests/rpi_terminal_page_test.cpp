@@ -8,15 +8,24 @@ int main() {
     epui::rpi::console::TerminalPage page(ui, shell);
 
     assert(page.captures_key(epui::Key::Select));
-    assert(!page.captures_key(epui::Key::Next));
+    assert(!page.captures_key(epui::Key::Left));
     page.on_key(epui::Key::Select);
     assert(page.focused());
+    assert(page.captures_key(epui::Key::Left));
     assert(page.captures_key(epui::Key::ScrollUp));
 
     page.on_char('a');
     page.on_char('b');
     page.on_char('c');
-    page.on_key(epui::Key::Prev);
+    page.on_key(epui::Key::Left);
+    epui::TerminalControls custom = page.controls();
+    custom.cursor_left = epui::Key::Up;
+    custom.cursor_right = epui::Key::Down;
+    page.set_controls(custom);
+    assert(page.captures_key(epui::Key::Up));
+    assert(!page.captures_key(epui::Key::Left));
+    page.on_key(epui::Key::Up);
+    page.on_key(epui::Key::Down);
     page.on_char('\b');
     page.on_char('x');
     assert(std::strcmp(page.command(), "axc") == 0);
@@ -25,7 +34,7 @@ int main() {
 
     for (int i = 0; i < 16; ++i) shell.view().feed("line\n", 5);
     page.on_key(epui::Key::ScrollUp);
-    assert(shell.view().scroll_offset() == 7);
+    assert(shell.view().scroll_offset() == 1);
     page.on_key(epui::Key::ScrollDown);
     assert(shell.view().scroll_offset() == 0);
 

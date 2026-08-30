@@ -27,6 +27,7 @@
 #include "epui/spring.hpp"
 #include "epui/theme_plugin.hpp"
 #include "epui/terminal_view.hpp"
+#include "epui/terminal_controls.hpp"
 #include "epui/widget_plugin.hpp"
 #include <cassert>
 

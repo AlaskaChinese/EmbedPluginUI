@@ -48,15 +48,19 @@ bool EvdevInputPlugin::poll(epui::InputEvent& out) {
 
         out = epui::InputEvent{};
         if (raw.code == KEY_RIGHT || raw.code == KEY_PAGEDOWN) {
-            out.key = epui::Key::Next;
+            out.key = epui::Key::Right;
             return true;
         }
         if (raw.code == KEY_LEFT || raw.code == KEY_PAGEUP) {
-            out.key = epui::Key::Prev;
+            out.key = epui::Key::Left;
             return true;
         }
         if (control_ && (raw.code == KEY_UP || raw.code == KEY_DOWN)) {
             out.key = raw.code == KEY_UP ? epui::Key::ScrollUp : epui::Key::ScrollDown;
+            return true;
+        }
+        if (raw.code == KEY_UP || raw.code == KEY_DOWN) {
+            out.key = raw.code == KEY_UP ? epui::Key::Up : epui::Key::Down;
             return true;
         }
         if (raw.code == KEY_ENTER || raw.code == KEY_KPENTER) {

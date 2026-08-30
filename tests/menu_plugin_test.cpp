@@ -91,6 +91,20 @@ int main() {
     assert(menu.selection_style() == epui::MenuSelectionStyle::Indicator);
     assert(menu.style().glass_height == 11);
     assert(menu.style().scroll_handoff_kick > 0.0f);
+    assert(menu.captures_key(epui::Key::Up));
+    assert(menu.captures_key(epui::Key::Down));
+    assert(menu.captures_key(epui::Key::Left));
+    assert(menu.captures_key(epui::Key::Right));
+
+    menu.on_key(epui::Key::Down);
+    assert(menu.selected_index() == 1);
+    menu.on_key(epui::Key::Up);
+    assert(menu.selected_index() == 0);
+    menu.on_key(epui::Key::Right);
+    assert(menu.depth() == 2);
+    menu.on_key(epui::Key::Left);
+    assert(menu.depth() == 1);
+    menu.reset_to_root(true);
 
     epui::Canvas indicator_canvas;
     menu.draw(indicator_canvas, 0);

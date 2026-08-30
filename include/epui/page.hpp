@@ -14,6 +14,10 @@ enum class Key : std::uint8_t {
     Back,
     ScrollUp,
     ScrollDown,
+    Up,
+    Down,
+    Left,
+    Right,
 };
 struct InputEvent;
 

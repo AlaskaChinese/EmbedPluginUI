@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
 
     std::fprintf(stderr,
                  "EmbedPluginUI Pi 5 console running: input=%s shell=%s; "
-                 "Left/Right=navigate/edit, Ctrl+Up/Down=page output, "
+                 "Left/Right=pages/edit, Up/Down=menu, Ctrl+Up/Down=scroll output, "
                  "Enter=focus/run, Esc=unfocus\n",
                  input_device, shell_path);
 

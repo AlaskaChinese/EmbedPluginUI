@@ -42,15 +42,15 @@ bool process_memory_probe(void*, DebugMemoryStats& out) {
 void handle_key(WPARAM key) {
     InputEvent event{};
     switch (key) {
-    case VK_RIGHT: event.key = Key::Next; break;
-    case VK_LEFT: event.key = Key::Prev; break;
+    case VK_RIGHT: event.key = Key::Right; break;
+    case VK_LEFT: event.key = Key::Left; break;
     case VK_DOWN:
-        if ((GetKeyState(VK_CONTROL) & 0x8000) == 0) return;
-        event.key = Key::ScrollDown;
+        event.key = (GetKeyState(VK_CONTROL) & 0x8000)
+            ? Key::ScrollDown : Key::Down;
         break;
     case VK_UP:
-        if ((GetKeyState(VK_CONTROL) & 0x8000) == 0) return;
-        event.key = Key::ScrollUp;
+        event.key = (GetKeyState(VK_CONTROL) & 0x8000)
+            ? Key::ScrollUp : Key::Up;
         break;
     case VK_RETURN: event.key = Key::Select; break;
     case VK_ESCAPE: event.key = Key::Back; break;
@@ -119,7 +119,7 @@ void paint(HWND hwnd) {
 
     SetBkMode(mem, TRANSPARENT);
     SetTextColor(mem, RGB(165, 173, 184));
-    const char* hint = "Left/Right: move/edit   Ctrl+Up/Down: output page   Enter: run";
+    const char* hint = "Left/Right: pages/back/open   Up/Down: menu   Ctrl+Up/Down: terminal output";
     TextOutA(mem, kPad, kClientH - 16, hint, lstrlenA(hint));
     BitBlt(hdc, 0, 0, client.right, client.bottom, mem, 0, 0, SRCCOPY);
     g_app.diagnostics().record_transfer(elapsed_us(transfer_begin, Clock::now()),

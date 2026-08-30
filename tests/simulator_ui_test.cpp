@@ -36,29 +36,35 @@ int main() {
     assert(!menu.captures_key(epui::Key::Next));
     assert(menu.captures_key(epui::Key::Select));
 
-    move_page(app, epui::Key::Next, now);
+    move_page(app, epui::Key::Right, now);
     assert(ui.page_index() == 1);
-    move_page(app, epui::Key::Next, now);
+    move_page(app, epui::Key::Right, now);
     assert(ui.page_index() == 2);
-    move_page(app, epui::Key::Next, now);
+    move_page(app, epui::Key::Right, now);
     assert(ui.page_index() == 3);
     assert(!menu.focused());
 
-    // Enter focuses the menu. Next is then consumed by the menu instead of
+    // Enter focuses the menu. Down is then consumed by the menu instead of
     // starting a top-level page transition.
     ui.handle(epui::Key::Select, now);
     assert(menu.focused());
     const std::size_t selected = menu.selected_index();
-    ui.handle(epui::Key::Next, now);
+    ui.handle(epui::Key::Down, now);
     assert(menu.selected_index() != selected);
     assert(!ui.animating());
     assert(ui.page_index() == 3);
+    ui.handle(epui::Key::Up, now);
+    assert(menu.selected_index() == selected);
+    ui.handle(epui::Key::Right, now);
+    assert(menu.depth() == 2);
+    ui.handle(epui::Key::Left, now);
+    assert(menu.depth() == 1);
 
     // Back at the root releases focus. Next moves to the terminal demo.
     ui.handle(epui::Key::Back, now);
     assert(!menu.focused());
     assert(!menu.captures_key(epui::Key::Next));
-    ui.handle(epui::Key::Next, now);
+    ui.handle(epui::Key::Right, now);
     assert(ui.animating());
     settle_transition(app, now);
     assert(ui.page_index() == 4);
@@ -68,10 +74,15 @@ int main() {
     assert(terminal.focused());
     ui.handle(epui::InputEvent{epui::Key::Select, true, 'h'}, now);
     ui.handle(epui::InputEvent{epui::Key::Select, true, 'i'}, now);
-    assert(std::string(terminal.view().line(terminal.view().line_count() - 1)) == "$ hi");
+    ui.handle(epui::Key::Left, now);
+    ui.handle(epui::InputEvent{epui::Key::Select, true, '!'}, now);
+    assert(std::string(terminal.command()) == "h!i");
+    ui.handle(epui::Key::Select, now);
+    assert(terminal.command_length() == 0);
+    assert(std::string(terminal.view().line(terminal.view().line_count() - 2)) == "$ h!i");
     ui.handle(epui::Key::Back, now);
     assert(!terminal.focused());
-    ui.handle(epui::Key::Next, now);
+    ui.handle(epui::Key::Right, now);
     assert(ui.animating());
     settle_transition(app, now);
     assert(ui.page_index() == 5);
@@ -79,10 +90,10 @@ int main() {
     auto& popup = app.popup();
     ui.handle(epui::Key::Select, now);
     assert(popup.visible());
-    ui.handle(epui::Key::Next, now);
+    ui.handle(epui::Key::Right, now);
     assert(popup.selected_index() == 1);
     assert(!ui.animating() && ui.page_index() == 5);
-    ui.handle(epui::Key::Prev, now);
+    ui.handle(epui::Key::Left, now);
     assert(popup.selected_index() == 0);
     ui.handle(epui::Key::Select, now);
     for (int i = 0; i < 240 && popup.visible(); ++i) {
@@ -92,7 +103,7 @@ int main() {
     assert(!popup.visible());
     assert(app.graphics().last_result() == epui::PopupResult::Accepted);
 
-    move_page(app, epui::Key::Next, now);
+    move_page(app, epui::Key::Right, now);
     assert(ui.page_index() == 0);
 
     return 0;

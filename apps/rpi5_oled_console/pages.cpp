@@ -77,32 +77,26 @@ void SystemPage::draw(epui::Canvas& canvas, std::uint32_t) {
 }
 
 bool TerminalPage::captures_key(epui::Key key) const {
-    if (key == epui::Key::Select) return true;
-    return focused_ && (key == epui::Key::Next || key == epui::Key::Prev
-                        || key == epui::Key::Back || key == epui::Key::ScrollUp
-                        || key == epui::Key::ScrollDown);
+    return controls_.captures(key, focused_);
 }
 
 void TerminalPage::on_key(epui::Key key) {
-    if (!focused_) {
-        if (key == epui::Key::Select) {
-            if (!shell_.running()) shell_.start();
-            focused_ = true;
-        }
-        return;
-    }
-    if (key == epui::Key::Back) {
+    const epui::TerminalAction action = controls_.action_for(key, focused_);
+    if (action == epui::TerminalAction::Focus) {
+        if (!shell_.running()) shell_.start();
+        focused_ = true;
+    } else if (action == epui::TerminalAction::Unfocus) {
         focused_ = false;
-    } else if (key == epui::Key::Select) {
+    } else if (action == epui::TerminalAction::Execute) {
         execute();
-    } else if (key == epui::Key::Next) {
+    } else if (action == epui::TerminalAction::CursorRight) {
         if (cursor_ < length_) ++cursor_;
-    } else if (key == epui::Key::Prev) {
+    } else if (action == epui::TerminalAction::CursorLeft) {
         if (cursor_ > 0) --cursor_;
-    } else if (key == epui::Key::ScrollUp) {
-        shell_.view().scroll(7);
-    } else if (key == epui::Key::ScrollDown) {
-        shell_.view().scroll(-7);
+    } else if (action == epui::TerminalAction::OutputUp) {
+        shell_.view().scroll(1);
+    } else if (action == epui::TerminalAction::OutputDown) {
+        shell_.view().scroll(-1);
     }
 }
 

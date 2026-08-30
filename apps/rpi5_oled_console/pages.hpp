@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include "epui/page_plugin.hpp"
+#include "epui/terminal_controls.hpp"
 #include "pty_session.hpp"
 #include "rpi_plugins.hpp"
 
@@ -53,8 +54,9 @@ private:
 
 class TerminalPage final : public epui::PagePlugin {
 public:
-    TerminalPage(epui::Ui& ui, PtySessionPlugin& shell)
-        : PagePlugin(ui, "page-terminal"), shell_(shell) {
+    TerminalPage(epui::Ui& ui, PtySessionPlugin& shell,
+                 epui::TerminalControls controls = epui::TerminalControls{})
+        : PagePlugin(ui, "page-terminal"), shell_(shell), controls_(controls) {
         shell_.view().set_cursor_visible(false);
     }
     epui::PluginDependencies dependencies() const override { return {dependency_, 1}; }
@@ -66,6 +68,8 @@ public:
     const char* command() const { return command_; }
     std::size_t command_length() const { return length_; }
     std::size_t cursor() const { return cursor_; }
+    const epui::TerminalControls& controls() const { return controls_; }
+    void set_controls(const epui::TerminalControls& controls) { controls_ = controls; }
 private:
     static constexpr std::size_t CommandCapacity = 128;
     static constexpr std::size_t VisibleColumns = 20;
@@ -76,6 +80,7 @@ private:
 
     const char* dependency_[1]{"shell-session"};
     PtySessionPlugin& shell_;
+    epui::TerminalControls controls_{};
     char command_[CommandCapacity + 1]{};
     std::size_t length_{0};
     std::size_t cursor_{0};

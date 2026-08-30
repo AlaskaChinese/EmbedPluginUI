@@ -97,7 +97,8 @@ public:
     void on_key(Key key) override {
         if (state_ == PopupState::Closing || state_ == PopupState::Hidden) return;
         if (buttons_ == PopupButtons::OkCancel
-            && (key == Key::Next || key == Key::Prev)) {
+            && (key == Key::Next || key == Key::Prev
+                || key == Key::Left || key == Key::Right)) {
             selected_ = selected_ == 0 ? 1 : 0;
         } else if (key == Key::Select) {
             close(selected_ == 0 ? PopupResult::Accepted : PopupResult::Cancelled);

@@ -68,8 +68,8 @@ void Ui::handle(Key key, std::uint32_t now_ms) {
         page->on_key(key);
         return;
     }
-    if (key == Key::Next) begin_transition(1, now_ms);
-    else if (key == Key::Prev) begin_transition(-1, now_ms);
+    if (key == Key::Next || key == Key::Right) begin_transition(1, now_ms);
+    else if (key == Key::Prev || key == Key::Left) begin_transition(-1, now_ms);
     else page->on_key(key);
 }
 

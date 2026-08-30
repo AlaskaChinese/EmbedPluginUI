@@ -72,7 +72,7 @@ bool X11DisplayPlugin::present(const epui::Canvas& canvas) {
                            Padding + y * Scale, (x - begin) * Scale, Scale);
         }
     }
-    const char* hint = "Left/Right: move/edit   Ctrl+Up/Down: output page   Enter: run";
+    const char* hint = "Left/Right: pages/back/open   Up/Down: menu   Ctrl+Up/Down: terminal output";
     XSetForeground(display_, gc_, 0xA5ADB8);
     XDrawString(display_, window_, gc_, Padding, WindowHeight - 10,
                 hint, static_cast<int>(std::strlen(hint)));
@@ -100,8 +100,10 @@ bool X11InputPlugin::poll(epui::InputEvent& out) {
         const bool control = (event.xkey.state & ControlMask) != 0;
         if (control && key == XK_Up) out.key = epui::Key::ScrollUp;
         else if (control && key == XK_Down) out.key = epui::Key::ScrollDown;
-        else if (key == XK_Right) out.key = epui::Key::Next;
-        else if (key == XK_Left) out.key = epui::Key::Prev;
+        else if (key == XK_Right) out.key = epui::Key::Right;
+        else if (key == XK_Left) out.key = epui::Key::Left;
+        else if (key == XK_Up) out.key = epui::Key::Up;
+        else if (key == XK_Down) out.key = epui::Key::Down;
         else if (key == XK_Return || key == XK_KP_Enter) out.key = epui::Key::Select;
         else if (key == XK_Escape) out.key = epui::Key::Back;
         else if (key == XK_BackSpace) out.ch = '\b';
