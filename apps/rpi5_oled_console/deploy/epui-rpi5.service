@@ -1,0 +1,15 @@
+[Unit]
+Description=EmbedPluginUI Raspberry Pi 5 OLED console
+After=local-fs.target
+
+[Service]
+Type=simple
+User=epui
+SupplementaryGroups=i2c input
+EnvironmentFile=-/etc/default/epui-rpi5
+ExecStart=/usr/local/bin/epui_rpi ${I2C_DEVICE} ${OLED_ADDRESS} ${OLED_CONTROLLER} ${INPUT_DEVICE} ${SHELL_PATH}
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

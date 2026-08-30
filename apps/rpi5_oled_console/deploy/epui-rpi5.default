@@ -1,0 +1,5 @@
+I2C_DEVICE=/dev/i2c-1
+OLED_ADDRESS=0x3c
+OLED_CONTROLLER=ssd1306
+INPUT_DEVICE=/dev/input/by-id/replace-with-your-keyboard-event-kbd
+SHELL_PATH=/bin/bash

@@ -1,0 +1,85 @@
+#pragma once
+
+#include <cstddef>
+#include "epui/page_plugin.hpp"
+#include "pty_session.hpp"
+#include "rpi_plugins.hpp"
+
+namespace epui::rpi::console {
+
+class OverviewPage final : public epui::PagePlugin {
+public:
+    OverviewPage(epui::Ui& ui, const SystemMonitorPlugin& system)
+        : PagePlugin(ui, "page-overview"), system_(system) {}
+    epui::PluginDependencies dependencies() const override { return {dependency_, 1}; }
+    void draw(epui::Canvas&, std::uint32_t) override;
+private:
+    const char* dependency_[1]{"system-monitor"};
+    const SystemMonitorPlugin& system_;
+};
+
+class NetworkPage final : public epui::PagePlugin {
+public:
+    NetworkPage(epui::Ui& ui, const SystemMonitorPlugin& system)
+        : PagePlugin(ui, "page-network"), system_(system) {}
+    epui::PluginDependencies dependencies() const override { return {dependency_, 1}; }
+    void draw(epui::Canvas&, std::uint32_t) override;
+private:
+    const char* dependency_[1]{"system-monitor"};
+    const SystemMonitorPlugin& system_;
+};
+
+class PowerPage final : public epui::PagePlugin {
+public:
+    PowerPage(epui::Ui& ui, const SystemMonitorPlugin& system)
+        : PagePlugin(ui, "page-power"), system_(system) {}
+    epui::PluginDependencies dependencies() const override { return {dependency_, 1}; }
+    void draw(epui::Canvas&, std::uint32_t) override;
+private:
+    const char* dependency_[1]{"system-monitor"};
+    const SystemMonitorPlugin& system_;
+};
+
+class SystemPage final : public epui::PagePlugin {
+public:
+    SystemPage(epui::Ui& ui, const SystemMonitorPlugin& system)
+        : PagePlugin(ui, "page-system"), system_(system) {}
+    epui::PluginDependencies dependencies() const override { return {dependency_, 1}; }
+    void draw(epui::Canvas&, std::uint32_t) override;
+private:
+    const char* dependency_[1]{"system-monitor"};
+    const SystemMonitorPlugin& system_;
+};
+
+class TerminalPage final : public epui::PagePlugin {
+public:
+    TerminalPage(epui::Ui& ui, PtySessionPlugin& shell)
+        : PagePlugin(ui, "page-terminal"), shell_(shell) {
+        shell_.view().set_cursor_visible(false);
+    }
+    epui::PluginDependencies dependencies() const override { return {dependency_, 1}; }
+    bool captures_key(epui::Key key) const override;
+    void on_key(epui::Key key) override;
+    void on_char(char ch) override;
+    void draw(epui::Canvas&, std::uint32_t) override;
+    bool focused() const { return focused_; }
+    const char* command() const { return command_; }
+    std::size_t command_length() const { return length_; }
+    std::size_t cursor() const { return cursor_; }
+private:
+    static constexpr std::size_t CommandCapacity = 128;
+    static constexpr std::size_t VisibleColumns = 20;
+
+    void insert(char ch);
+    void erase_before_cursor();
+    void execute();
+
+    const char* dependency_[1]{"shell-session"};
+    PtySessionPlugin& shell_;
+    char command_[CommandCapacity + 1]{};
+    std::size_t length_{0};
+    std::size_t cursor_{0};
+    bool focused_{false};
+};
+
+} // namespace epui::rpi::console
